@@ -1,0 +1,1369 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>자산관리 포트폴리오</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Space+Mono:wght@400;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg: #06090f;
+  --surface: #0c1120;
+  --surface2: #111827;
+  --border: #1c2840;
+  --border2: #243050;
+  --gold: #c9a84c;
+  --gold-light: #e8c97a;
+  --gold-dim: rgba(201,168,76,0.12);
+  --green: #2dd9a0;
+  --red: #ff5c5c;
+  --blue: #4a9eff;
+  --text: #dde2ed;
+  --text-muted: #68788f;
+  --text-dim: #2e3d55;
+  --font: 'Noto Sans KR', sans-serif;
+  --mono: 'Space Mono', monospace;
+  --display: 'DM Serif Display', serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: var(--font); min-height: 100vh; font-size: 14px; }
+
+/* ─── HEADER ─── */
+.header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  display: flex; align-items: center; justify-content: space-between;
+  height: 58px; position: sticky; top: 0; z-index: 100;
+}
+.header-logo { display: flex; align-items: center; gap: 12px; }
+.header-title { font-family: var(--display); font-size: 21px; color: var(--gold); letter-spacing: 0.3px; }
+.header-sub { font-size: 11px; color: var(--text-muted); font-family: var(--mono); padding-top: 3px; }
+.header-right { display: flex; align-items: center; gap: 10px; }
+.last-update { font-size: 11px; color: var(--text-muted); font-family: var(--mono); }
+.btn-refresh {
+  background: transparent; border: 1px solid var(--gold); color: var(--gold);
+  padding: 7px 16px; border-radius: 5px; cursor: pointer; font-size: 13px;
+  font-family: var(--font); transition: all 0.2s; display: flex; align-items: center; gap: 6px;
+}
+.btn-refresh:hover { background: var(--gold); color: var(--bg); }
+.btn-refresh.loading { opacity: 0.5; pointer-events: none; }
+
+/* ─── TABS ─── */
+.tabs {
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  display: flex; padding: 0 24px;
+}
+.tab {
+  padding: 14px 18px; cursor: pointer; font-size: 14px; font-weight: 500;
+  color: var(--text-muted); border-bottom: 2px solid transparent;
+  transition: all 0.18s; white-space: nowrap;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+
+/* ─── LAYOUT ─── */
+.content { padding: 24px; max-width: 1400px; margin: 0 auto; }
+.tab-pane { display: none; }
+.tab-pane.active { display: block; }
+.section { margin-bottom: 24px; }
+.section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.section-title { font-family: var(--display); font-size: 19px; color: var(--text); }
+.g4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; }
+.g3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; }
+.g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.g21 { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+
+/* ─── CARDS ─── */
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 9px; padding: 20px;
+}
+.card-title { font-size: 11px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+.card-value { font-family: var(--mono); font-size: 26px; font-weight: 700; }
+.card-sub { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+.card-accent { border-left: 3px solid var(--gold); }
+
+/* ─── BUTTONS ─── */
+.btn { padding: 8px 18px; border-radius: 5px; border: none; cursor: pointer; font-size: 13px; font-family: var(--font); font-weight: 500; transition: all 0.18s; }
+.btn-primary { background: var(--gold); color: var(--bg); }
+.btn-primary:hover { background: var(--gold-light); }
+.btn-outline { background: transparent; border: 1px solid var(--border2); color: var(--text-muted); }
+.btn-outline:hover { border-color: var(--text-muted); color: var(--text); }
+.btn-danger { background: transparent; border: 1px solid var(--red); color: var(--red); padding: 4px 10px; font-size: 12px; border-radius: 4px; cursor: pointer; font-family: var(--font); transition: all 0.18s; }
+.btn-danger:hover { background: var(--red); color: white; }
+.btn-sm { padding: 5px 12px; font-size: 12px; }
+
+/* ─── TABLE ─── */
+.tbl-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; padding: 10px 14px; font-size: 11px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+td { padding: 12px 14px; border-bottom: 1px solid var(--border); font-size: 13px; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(255,255,255,0.015); }
+.num { font-family: var(--mono); font-size: 13px; }
+.green { color: var(--green); }
+.red { color: var(--red); }
+.gold { color: var(--gold); }
+.muted { color: var(--text-muted); }
+
+/* ─── BADGE ─── */
+.badge { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 500; }
+.badge-green { background: rgba(45,217,160,0.1); color: var(--green); }
+.badge-red { background: rgba(255,92,92,0.1); color: var(--red); }
+.badge-blue { background: rgba(74,158,255,0.1); color: var(--blue); }
+.badge-gold { background: var(--gold-dim); color: var(--gold); }
+.badge-muted { background: rgba(104,120,143,0.12); color: var(--text-muted); }
+
+/* ─── RATES STRIP ─── */
+.rate-strip { display: flex; gap: 10px; flex-wrap: wrap; }
+.rate-item { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 18px; min-width: 130px; }
+.rate-label { font-size: 11px; color: var(--text-muted); font-family: var(--mono); margin-bottom: 4px; }
+.rate-value { font-family: var(--mono); font-size: 18px; font-weight: 700; color: var(--text); }
+.rate-change { font-size: 10px; margin-top: 2px; }
+
+/* ─── PROGRESS ─── */
+.prog-track { background: var(--border); border-radius: 4px; height: 4px; margin-top: 10px; }
+.prog-fill { height: 4px; border-radius: 4px; background: var(--gold); transition: width 0.5s ease; }
+.prog-label { font-size: 11px; color: var(--text-muted); margin-top: 4px; display: flex; justify-content: space-between; }
+
+/* ─── MODAL ─── */
+.modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.75); z-index: 1000;
+  align-items: center; justify-content: center;
+  backdrop-filter: blur(6px);
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--surface2); border: 1px solid var(--border2);
+  border-radius: 12px; padding: 30px; width: 460px;
+  max-width: 95vw; max-height: 88vh; overflow-y: auto;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.6);
+}
+.modal-title { font-family: var(--display); font-size: 21px; color: var(--gold); margin-bottom: 22px; }
+.fg { margin-bottom: 16px; }
+.fl { display: block; font-size: 11px; font-weight: 500; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.6px; }
+.fi, .fs {
+  width: 100%; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 5px; padding: 10px 14px; color: var(--text); font-size: 14px;
+  font-family: var(--font); outline: none; transition: border-color 0.2s;
+}
+.fi:focus, .fs:focus { border-color: var(--gold); }
+.fs option { background: var(--surface2); }
+.fr { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 22px; }
+
+/* ─── ITEM CARDS ─── */
+.item-card { background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 20px; margin-bottom: 12px; }
+.item-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
+.item-name { font-size: 15px; font-weight: 600; margin-bottom: 3px; }
+.item-meta { font-size: 12px; color: var(--text-muted); line-height: 1.7; }
+.item-stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 4px; }
+.stat-label { font-size: 11px; color: var(--text-muted); margin-bottom: 3px; }
+.stat-value { font-family: var(--mono); font-size: 15px; font-weight: 700; }
+
+/* ─── SUMMARY ROW ─── */
+.sum-row {
+  background: var(--surface2); border: 1px solid var(--border2);
+  border-radius: 8px; padding: 18px 24px; display: flex;
+  justify-content: space-around; align-items: center; flex-wrap: wrap; gap: 16px;
+  margin-top: 6px;
+}
+.sum-item { text-align: center; }
+.sum-label { font-size: 11px; color: var(--text-muted); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.7px; }
+.sum-value { font-family: var(--mono); font-size: 16px; font-weight: 700; }
+
+/* ─── CHARTS ─── */
+.chart-box { position: relative; height: 260px; }
+.chart-box-sm { position: relative; height: 200px; }
+
+/* ─── CASHFLOW ─── */
+.cf-row { display: flex; justify-content: space-between; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--border); }
+.cf-row:last-child { border-bottom: none; }
+.cf-label { color: var(--text-muted); font-size: 13px; }
+.cf-amount { font-family: var(--mono); font-size: 13px; }
+
+/* ─── EMPTY ─── */
+.empty { text-align: center; padding: 52px 20px; color: var(--text-muted); }
+.empty-icon { font-size: 36px; margin-bottom: 12px; }
+.empty-txt { font-size: 14px; }
+
+/* ─── TOAST ─── */
+.toast {
+  position: fixed; top: 76px; right: 20px;
+  background: var(--surface2); border: 1px solid var(--border2);
+  border-left: 3px solid var(--green); border-radius: 7px;
+  padding: 12px 18px; font-size: 13px; color: var(--text);
+  z-index: 2000; opacity: 0; transform: translateY(-8px);
+  transition: all 0.25s; pointer-events: none;
+}
+.toast.show { opacity: 1; transform: translateY(0); }
+.toast.err { border-left-color: var(--red); }
+
+/* ─── WATERMARK ─── */
+.watermark {
+  position: fixed; bottom: 14px; right: 18px;
+  font-family: var(--mono); font-size: 10px; color: var(--text-dim);
+  letter-spacing: 1.5px; pointer-events: none; z-index: 9999;
+  text-transform: lowercase;
+}
+
+/* ─── SPIN ─── */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { display: inline-block; animation: spin 0.9s linear infinite; }
+
+/* ─── RESPONSIVE ─── */
+@media (max-width: 960px) {
+  .g4 { grid-template-columns: repeat(2,1fr); }
+  .g21 { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .g4, .g3, .g2, .g21 { grid-template-columns: 1fr; }
+  .content { padding: 14px; }
+  .item-stats { grid-template-columns: repeat(2,1fr); }
+  .tabs { overflow-x: auto; }
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="header-logo">
+    <div>
+      <div class="header-title">자산관리 포트폴리오</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <span class="last-update" id="lastUpdate">—</span>
+    <button class="btn-refresh" style="border-color:#4a9eff;color:#4a9eff" onclick="openGasModal()">
+      🔗 구글 시트
+    </button>
+    <button class="btn-refresh" id="refreshBtn" onclick="refreshAll()">
+      <span id="refreshIcon">↻</span> 시세 갱신
+    </button>
+  </div>
+</header>
+
+<!-- TABS -->
+<nav class="tabs">
+  <div class="tab active"  onclick="switchTab('dashboard')">📊 대시보드</div>
+  <div class="tab"         onclick="switchTab('investment')">📈 투자</div>
+  <div class="tab"         onclick="switchTab('fund')">🏢 펀드</div>
+  <div class="tab"         onclick="switchTab('savings')">🏦 예금·적금</div>
+  <div class="tab"         onclick="switchTab('loans')">🏠 대출</div>
+  <div class="tab"         onclick="switchTab('records')">📋 기록</div>
+</nav>
+
+<main class="content">
+
+  <!-- ═══ 대시보드 ═══ -->
+  <div class="tab-pane active" id="tab-dashboard">
+    <div class="section">
+      <div class="g4" id="dashCards"></div>
+    </div>
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">실시간 환율</div>
+        <span style="font-size:11px;color:var(--text-muted);font-family:var(--mono)" id="rateTime"></span>
+      </div>
+      <div class="rate-strip" id="rateStrip"></div>
+    </div>
+    <div class="section">
+      <div class="g21">
+        <div class="card">
+          <div class="card-title">순자산 변화 추이</div>
+          <div class="chart-box"><canvas id="lineChart"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title">자산 구성</div>
+          <div class="chart-box-sm"><canvas id="pieChart"></canvas></div>
+          <div id="pieLabels" style="margin-top:10px;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-header"><div class="section-title">이달 현금흐름</div></div>
+      <div class="card" id="cashflow"></div>
+    </div>
+  </div>
+
+  <!-- ═══ 투자 ═══ -->
+  <div class="tab-pane" id="tab-investment">
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">투자 종목</div>
+        <button class="btn btn-primary" onclick="openModal('stock')">+ 종목 추가</button>
+      </div>
+      <div class="card">
+        <div class="tbl-wrap" id="stockTable"></div>
+      </div>
+    </div>
+    <div class="card" id="invSummary" style="display:none"></div>
+  </div>
+
+  <!-- ═══ 펀드 ═══ -->
+  <div class="tab-pane" id="tab-fund">
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">펀드 종목</div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button class="btn btn-outline btn-sm" onclick="refreshFunds()" id="fundRefreshBtn">↻ 기준가 조회</button>
+          <button class="btn btn-primary" onclick="openModal('fund')">+ 펀드 추가</button>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:12px;border-left:3px solid var(--blue);padding:14px 18px;">
+        <div style="font-size:12px;color:var(--text-muted);line-height:1.8;">
+          💡 <strong style="color:var(--text)">펀드 코드 확인 방법:</strong>
+          네이버 금융 → 펀드 검색 → 펀드 상세 페이지 URL의 <code style="background:var(--surface2);padding:2px 6px;border-radius:3px;font-family:var(--mono);font-size:11px">fundCd=KR...</code> 값 입력<br>
+          <span style="color:var(--text-muted)">예: https://finance.naver.com/fund/fundDetail.naver?fundCd=<strong style="color:var(--gold)">KR5223941338</strong></span>
+        </div>
+      </div>
+      <div id="fundTable"></div>
+    </div>
+    <div class="card" id="fundSummary" style="display:none;margin-top:0"></div>
+  </div>
+
+  <!-- ═══ 예금·적금 ═══ -->
+  <div class="tab-pane" id="tab-savings">
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">적금</div>
+        <button class="btn btn-primary" onclick="openModal('installment')">+ 적금 추가</button>
+      </div>
+      <div id="instList"></div>
+    </div>
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">예금</div>
+        <button class="btn btn-primary" onclick="openModal('deposit')">+ 예금 추가</button>
+      </div>
+      <div id="depList"></div>
+    </div>
+  </div>
+
+  <!-- ═══ 대출 ═══ -->
+  <div class="tab-pane" id="tab-loans">
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">대출 현황</div>
+        <button class="btn btn-primary" onclick="openModal('loan')">+ 대출 추가</button>
+      </div>
+      <div id="loanCards"></div>
+      <div id="loanSummary"></div>
+    </div>
+  </div>
+
+  <!-- ═══ 기록 ═══ -->
+  <div class="tab-pane" id="tab-records">
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">구글 시트 연동</div>
+        <button class="btn btn-outline btn-sm" onclick="openGasModal()">⚙ 설정</button>
+      </div>
+      <div class="card" id="gasStatusCard">
+        <div id="gasStatus" style="font-size:13px;color:var(--text-muted)">
+          구글 시트 URL을 설정하면 자산 데이터를 자동으로 기록할 수 있습니다.
+        </div>
+        <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap" id="gasButtons" style="display:none">
+          <button class="btn btn-primary" onclick="gasSync('record')">📅 오늘 기록 저장</button>
+          <button class="btn btn-outline" onclick="gasSync('sync')">🔄 전체 데이터 동기화</button>
+          <button class="btn btn-outline btn-sm" style="border-color:var(--blue);color:var(--blue)" onclick="gasTest()">연결 테스트</button>
+        </div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">로컬 기록 내역</div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-outline" onclick="exportCSV()">↓ CSV</button>
+          <button class="btn btn-primary" onclick="saveRecord()">오늘 로컬 저장</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="tbl-wrap" id="recTable"></div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- GAS Modal -->
+<div class="modal-overlay" id="gasBg" onclick="if(event.target===this)closeGasModal()">
+  <div class="modal" style="width:520px">
+    <div class="modal-title">🔗 구글 시트 연동 설정</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--blue);border-radius:6px;padding:14px 16px;margin-bottom:20px;font-size:12px;color:var(--text-muted);line-height:1.9">
+      <strong style="color:var(--text)">Apps Script 설정 순서</strong><br>
+      1. 구글 시트 열기 → 확장 프로그램 → Apps Script<br>
+      2. 제공된 <code style="background:var(--surface2);padding:1px 5px;border-radius:3px;color:var(--gold)">apps_script.js</code> 코드 붙여넣기 → 저장<br>
+      3. 배포 → 새 배포 → 웹 앱 → <strong style="color:var(--text)">액세스: 모든 사용자</strong> → 배포<br>
+      4. 웹 앱 URL 아래에 붙여넣기
+    </div>
+    <div class="fg">
+      <label class="fl">Apps Script 웹 앱 URL</label>
+      <input class="fi" id="gasUrlInput" placeholder="https://script.google.com/macros/s/.../exec" style="font-family:var(--mono);font-size:12px">
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:20px">
+      <button class="btn btn-outline btn-sm" onclick="gasTest()" style="border-color:var(--blue);color:var(--blue)">🔌 연결 테스트</button>
+      <span id="gasTestResult" style="font-size:12px;padding:6px 0;color:var(--text-muted)"></span>
+    </div>
+    <div style="border-top:1px solid var(--border);padding-top:18px;margin-bottom:4px">
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">동기화 작업</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="gasSync('record')">📅 오늘 기록만 저장</button>
+        <button class="btn btn-outline" onclick="gasSync('sync')">🔄 전체 데이터 동기화</button>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:10px">
+        · <strong>오늘 기록</strong>: 일일기록 시트에 오늘 자산 스냅샷 저장/업데이트<br>
+        · <strong>전체 동기화</strong>: 투자·펀드·적금·예금·대출 시트 전체 덮어쓰기 + 오늘 기록
+      </div>
+    </div>
+    <div id="gasSyncResult" style="margin-top:14px;font-size:13px;display:none"></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeGasModal()">닫기</button>
+      <button class="btn btn-primary" onclick="saveGasUrl()">URL 저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modalBg" onclick="bgClose(event)">
+  <div class="modal">
+    <div class="modal-title" id="modalTitle"></div>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="watermark">made by 박선생</div>
+
+<script>
+// ══════════════════════════════════════════════
+//  DATA LAYER
+// ══════════════════════════════════════════════
+const KEY = 'assetMgr_v3';
+
+function fresh() {
+  return {
+    stocks: [],
+    funds: [],
+    installments: [],
+    deposits: [],
+    loans: [],
+    records: [],
+    rates: { USD: 1370, EUR: 1490, JPY: 9.1, CNY: 190 },
+    rateTs: null,
+    gasUrl: ''
+  };
+}
+
+let D = (() => { try { const s = localStorage.getItem(KEY); return s ? Object.assign(fresh(), JSON.parse(s)) : fresh(); } catch(e) { return fresh(); } })();
+
+function save() { localStorage.setItem(KEY, JSON.stringify(D)); }
+
+// ══════════════════════════════════════════════
+//  FORMATTING
+// ══════════════════════════════════════════════
+const fmt  = (n, d=0) => isNaN(n) ? '—' : Number(n).toLocaleString('ko-KR', {minimumFractionDigits:d, maximumFractionDigits:d});
+const fmtW = n => { if(!n && n!==0) return '—'; const a=Math.abs(n); if(a>=1e8) return fmt(n/1e8,1)+'억'; if(a>=1e4) return fmt(n/1e4,0)+'만'; return fmt(n); };
+const fmtF = n => fmt(n)+'원';
+const pctHtml = p => p>0 ? `<span class="green">+${fmt(p,2)}%</span>` : p<0 ? `<span class="red">${fmt(p,2)}%</span>` : `<span>${fmt(p,2)}%</span>`;
+const krw = (amt, cur) => cur && cur!=='KRW' ? amt*(D.rates[cur]||1) : amt;
+
+// ══════════════════════════════════════════════
+//  CALCULATIONS
+// ══════════════════════════════════════════════
+function monthsFrom(dateStr) {
+  if (!dateStr) return 0;
+  const s = new Date(dateStr), n = new Date();
+  return Math.max(0, (n.getFullYear()-s.getFullYear())*12 + n.getMonth()-s.getMonth());
+}
+
+function calcInst(it) {
+  const elapsed = Math.min(monthsFrom(it.startDate), it.termMonths);
+  const deposited = it.monthlyAmount * elapsed;
+  const r = it.interestRate / 100 / 12;
+  // Each month's installment earns interest for remaining months until maturity
+  let interest = 0;
+  for (let i = 1; i <= elapsed; i++) {
+    interest += it.monthlyAmount * r * (it.termMonths - i + 1);
+  }
+  const maturity = it.monthlyAmount * it.termMonths + it.monthlyAmount * r * it.termMonths * (it.termMonths+1) / 2;
+  return { elapsed, deposited, interest: Math.round(interest), total: Math.round(deposited+interest), maturity: Math.round(maturity), pct: elapsed/it.termMonths };
+}
+
+function calcDep(it) {
+  const s = new Date(it.startDate), e = new Date(it.endDate);
+  const termDays = Math.max(1, Math.round((e-s)/86400000));
+  const nowDays  = Math.min(Math.round((Date.now()-s)/86400000), termDays);
+  const interest = Math.round(it.amount * (it.interestRate/100) * nowDays/365);
+  const matInt   = Math.round(it.amount * (it.interestRate/100) * termDays/365);
+  return { nowDays, termDays, interest, maturity: it.amount+matInt, pct: Math.min(nowDays/termDays,1) };
+}
+
+function calcLoan(it) {
+  const elapsed = Math.min(monthsFrom(it.startDate), it.termMonths);
+  const r = it.interestRate/100/12, n = it.termMonths;
+  let monthly, balance;
+  if (it.repayType === 'equal') {
+    monthly = r===0 ? it.amount/n : it.amount*r*Math.pow(1+r,n)/(Math.pow(1+r,n)-1);
+    balance = it.amount;
+    for (let i=0; i<elapsed; i++) { const int=balance*r; balance -= (monthly-int); }
+    balance = Math.max(0, balance);
+  } else {
+    const pp = it.amount/n;
+    balance = Math.max(0, it.amount - pp*elapsed);
+    monthly = pp + balance*r;
+  }
+  return { elapsed, monthly: Math.round(monthly), balance: Math.round(balance), done: elapsed>=n, pct: Math.min(elapsed/n,1) };
+}
+
+function totals() {
+  let stocks=0, funds=0, inst=0, dep=0, loans=0;
+  D.stocks.forEach(s => { stocks += krw((s.currentPrice||s.avgPrice)*s.shares, s.currency); });
+  D.funds.forEach(f => { const nav=f.currentNav||f.purchaseNav; funds += (f.units/1000)*nav; });
+  D.installments.forEach(it => { inst += krw(calcInst(it).total, it.currency||'KRW'); });
+  D.deposits.forEach(it => { dep += krw(it.amount+calcDep(it).interest, it.currency||'KRW'); });
+  D.loans.forEach(it => { loans += calcLoan(it).balance; });
+  return { stocks, funds, inst, dep, loans, total: stocks+funds+inst+dep, net: stocks+funds+inst+dep-loans };
+}
+
+function monthlyOut() {
+  let m=0;
+  D.installments.forEach(it => m += it.monthlyAmount||0);
+  D.loans.forEach(it => { const c=calcLoan(it); if(!c.done) m += c.monthly; });
+  return m;
+}
+
+// ══════════════════════════════════════════════
+//  API
+// ══════════════════════════════════════════════
+async function fetchRates() {
+  const apis = [
+    () => fetch('https://open.er-api.com/v6/latest/KRW').then(r=>r.json()).then(j=>{ if(j.result==='success'){return j.rates;} throw 0; }),
+    () => fetch('https://api.frankfurter.app/latest?from=KRW&to=USD,EUR,JPY,CNY').then(r=>r.json()).then(j=>{ if(j.rates){return j.rates;} throw 0; })
+  ];
+  for (const fn of apis) {
+    try {
+      const r = await fn();
+      D.rates = { USD: Math.round(1/r.USD), EUR: Math.round(1/r.EUR), JPY: +((1/r.JPY).toFixed(2)), CNY: Math.round(1/r.CNY) };
+      D.rateTs = new Date().toISOString();
+      save();
+      return true;
+    } catch(e) {}
+  }
+  return false;
+}
+
+async function fetchPrice(sym) {
+  try {
+    const url = encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=1d`);
+    const r = await fetch(`https://api.allorigins.win/raw?url=${url}`);
+    const j = await r.json();
+    const m = j.chart.result[0].meta;
+    return { price: m.regularMarketPrice, currency: m.currency };
+  } catch(e) { return null; }
+}
+
+// ── 네이버 금융 펀드 기준가 조회 ──
+async function fetchFundNav(fundCode) {
+  const PROXY = 'https://api.allorigins.win/raw?url=';
+  const today = new Date().toISOString().slice(0,10);
+
+  // 전략 1: 모바일 네이버 금융 (구조가 단순)
+  try {
+    const url = `https://m.fund.naver.com/fund/detail/info?fundCd=${encodeURIComponent(fundCode)}`;
+    const res = await fetch(PROXY + encodeURIComponent(url));
+    const html = await res.text();
+
+    // Next.js __NEXT_DATA__ JSON 탐색
+    const nd = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+    if (nd) {
+      try {
+        const data = JSON.parse(nd[1]);
+        const nav = deepFind(data, ['basePrc','basePrice','nav','prc','price']);
+        if (nav && +nav > 100 && +nav < 200000) return { nav: parseFloat(String(nav).replace(/,/g,'')), date: today };
+      } catch(e) {}
+    }
+
+    // 정규식 패턴
+    const patterns = [
+      /(?:basePrc|basePrice|기준가격?)[^\d]*?([\d,]{3,9}(?:\.\d{1,4})?)/,
+      /"prc"\s*:\s*"?([\d.]{3,10})"/,
+      /class="[^"]*price[^"]*"[^>]*>([\d,]+(?:\.\d+)?)/,
+    ];
+    for (const re of patterns) {
+      const m = html.match(re);
+      if (m) { const n=parseFloat(m[1].replace(/,/g,'')); if(n>100&&n<200000) return { nav:n, date:today }; }
+    }
+  } catch(e) {}
+
+  // 전략 2: PC 네이버 금융 펀드 상세 페이지
+  try {
+    const url = `https://finance.naver.com/fund/fundDetail.naver?fundCd=${encodeURIComponent(fundCode)}`;
+    const res = await fetch(PROXY + encodeURIComponent(url));
+    const html = await res.text();
+    const doc  = new DOMParser().parseFromString(html, 'text/html');
+
+    // CSS 셀렉터 시도
+    const sels = [
+      '.today em.num', 'em.num', '.fund_price', '#basePrice',
+      '.cost_area .price', '.td_rate em', '.current', 'strong.num'
+    ];
+    for (const sel of sels) {
+      const el = doc.querySelector(sel);
+      if (el) { const n=parseFloat(el.textContent.replace(/[^0-9.]/g,'')); if(n>100&&n<200000) return { nav:n, date:today }; }
+    }
+
+    // 정규식 패턴
+    const patterns = [
+      /기준가[가-힣\s:]*?([\d,]{3,9}(?:\.\d{1,4})?)/,
+      /"basePrc"\s*:\s*"?([\d.]+)"/,
+      /basePrc[^\d]*([\d,]{3,9}(?:\.\d{1,4})?)/,
+    ];
+    for (const re of patterns) {
+      const m = html.match(re);
+      if (m) { const n=parseFloat(m[1].replace(/,/g,'')); if(n>100&&n<200000) return { nav:n, date:today }; }
+    }
+  } catch(e) {}
+
+  return null; // 조회 실패
+}
+
+// JSON 깊은 탐색
+function deepFind(obj, keys, depth=0) {
+  if (depth>8 || !obj || typeof obj!=='object') return null;
+  for (const key of keys) {
+    if (obj[key] !== undefined && obj[key] !== null) return obj[key];
+  }
+  for (const v of Object.values(obj)) {
+    const r = deepFind(v, keys, depth+1);
+    if (r) return r;
+  }
+  return null;
+}
+
+async function refreshAll() {
+  const btn = document.getElementById('refreshBtn');
+  const ic  = document.getElementById('refreshIcon');
+  btn.classList.add('loading');
+  ic.innerHTML = '<span class="spin">↻</span>';
+
+  const ok = await fetchRates();
+
+  for (const s of D.stocks) {
+    if (s.symbol) {
+      const r = await fetchPrice(s.symbol);
+      if (r) { s.currentPrice = r.price; }
+    }
+  }
+
+  // 펀드 기준가 갱신
+  for (const f of D.funds) {
+    if (f.fundCode) {
+      const r = await fetchFundNav(f.fundCode);
+      if (r) { f.currentNav = r.nav; f.navDate = r.date; f.navStatus = 'ok'; }
+      else { f.navStatus = 'fail'; }
+    }
+  }
+  save();
+
+  const now = new Date();
+  document.getElementById('lastUpdate').textContent = `갱신 ${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
+  btn.classList.remove('loading');
+  ic.textContent = '↻';
+  toast(ok ? '시세가 업데이트되었습니다' : '환율 API 연결 실패 (저장값 유지)');
+  renderAll();
+}
+
+// ══════════════════════════════════════════════
+//  RENDER
+// ══════════════════════════════════════════════
+function renderAll() {
+  renderDash();
+  renderInv();
+  renderFund();
+  renderSavings();
+  renderLoans();
+  renderRec();
+}
+
+/* ── DASHBOARD ── */
+let lineInst=null, pieInst=null;
+
+function renderDash() {
+  const T = totals();
+
+  // Summary cards
+  document.getElementById('dashCards').innerHTML = [
+    { title:'총 자산', val: fmtW(T.total), sub: fmtF(T.total), cls:'gold' },
+    { title:'순 자산', val: fmtW(T.net),   sub: fmtF(T.net),   cls:'' },
+    { title:'총 부채', val: fmtW(T.loans),  sub: fmtF(T.loans), cls:'red' },
+    { title:'월 자동지출', val: fmtW(monthlyOut()), sub:'적금 + 대출 상환', cls:'' }
+  ].map(c=>`
+    <div class="card card-accent">
+      <div class="card-title">${c.title}</div>
+      <div class="card-value ${c.cls}">${c.val}</div>
+      <div class="card-sub">${c.sub}</div>
+    </div>
+  `).join('');
+
+  // Exchange rates
+  const rs = D.rates;
+  document.getElementById('rateStrip').innerHTML = [
+    { label:'USD / KRW', val: fmt(rs.USD)+'원', sub:'1달러' },
+    { label:'EUR / KRW', val: fmt(rs.EUR)+'원', sub:'1유로' },
+    { label:'JPY 100 / KRW', val: fmt(rs.JPY*100)+'원', sub:'100엔' },
+    { label:'CNY / KRW', val: fmt(rs.CNY)+'원', sub:'1위안' }
+  ].map(r=>`
+    <div class="rate-item">
+      <div class="rate-label">${r.label}</div>
+      <div class="rate-value">${r.val}</div>
+      <div class="rate-change muted">${r.sub}</div>
+    </div>
+  `).join('');
+
+  if (D.rateTs) {
+    const d = new Date(D.rateTs);
+    document.getElementById('rateTime').textContent = `${d.getFullYear()}.${d.getMonth()+1}.${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')} 기준`;
+  }
+
+  // Line chart
+  const recs = D.records.slice(-60);
+  const lCtx = document.getElementById('lineChart');
+  if (lineInst) lineInst.destroy();
+  lineInst = new Chart(lCtx, {
+    type: 'line',
+    data: {
+      labels: recs.map(r=>r.date.slice(5)),
+      datasets: [
+        { label:'순자산', data: recs.map(r=>r.net), borderColor:'#c9a84c', backgroundColor:'rgba(201,168,76,0.07)', tension:0.4, fill:true, pointRadius:2.5, pointBackgroundColor:'#c9a84c' },
+        { label:'총자산', data: recs.map(r=>r.total), borderColor:'#4a9eff', backgroundColor:'rgba(74,158,255,0.04)', tension:0.4, fill:false, pointRadius:2, pointBackgroundColor:'#4a9eff', borderDash:[4,3] }
+      ]
+    },
+    options: { responsive:true, maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      plugins:{ legend:{ labels:{ color:'#68788f', font:{size:11} } }, tooltip:{ callbacks:{ label: ctx=>`${ctx.dataset.label}: ${fmtW(ctx.raw)}` } } },
+      scales:{
+        x:{ grid:{color:'rgba(255,255,255,0.04)'}, ticks:{color:'#68788f',font:{size:11}} },
+        y:{ grid:{color:'rgba(255,255,255,0.04)'}, ticks:{color:'#68788f',font:{size:11},callback:v=>fmtW(v)} }
+      }
+    }
+  });
+
+  // Pie chart
+  const pCtx = document.getElementById('pieChart');
+  if (pieInst) pieInst.destroy();
+  const pData = [T.stocks, T.funds, T.dep, T.inst];
+  const pColors = ['#4a9eff','#a78bfa','#c9a84c','#2dd9a0'];
+  const pLabels = ['투자','펀드','예금','적금'];
+  pieInst = new Chart(pCtx, {
+    type: 'doughnut',
+    data: { labels: pLabels, datasets:[{ data:pData, backgroundColor:pColors, borderWidth:0, hoverOffset:4 }] },
+    options: { responsive:true, maintainAspectRatio:false, cutout:'68%',
+      plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: ctx=>`${fmtW(ctx.raw)}원` } } }
+    }
+  });
+  const tot = pData.reduce((a,b)=>a+b,0);
+  document.getElementById('pieLabels').innerHTML = pLabels.map((l,i)=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0">
+      <span style="color:${pColors[i]};font-size:12px">● ${l}</span>
+      <span style="font-family:var(--mono);font-size:12px">${tot>0?fmt(pData[i]/tot*100,1):0}%</span>
+    </div>
+  `).join('');
+
+  // Cash flow
+  let rows = [];
+  D.installments.forEach(it => rows.push({ label:`적금: ${it.name}`, amt: it.monthlyAmount, type:'out' }));
+  D.loans.forEach(it => { const c=calcLoan(it); if(!c.done) rows.push({ label:`대출: ${it.name}`, amt: c.monthly, type:'out' }); });
+  const outTotal = rows.reduce((a,r)=>a+r.amt, 0);
+  document.getElementById('cashflow').innerHTML = rows.length ? `
+    <div class="g2">
+      <div>
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:10px">월 지출 항목</div>
+        ${rows.map(r=>`<div class="cf-row"><span class="cf-label">${r.label}</span><span class="cf-amount red">${fmtF(r.amt)}</span></div>`).join('')}
+      </div>
+      <div style="display:flex;flex-direction:column;justify-content:center;align-items:center;border:1px solid var(--border);border-radius:8px;padding:20px;text-align:center;">
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">총 월 고정지출</div>
+        <div style="font-family:var(--mono);font-size:28px;font-weight:700;color:var(--red)">${fmtF(outTotal)}</div>
+      </div>
+    </div>
+  ` : `<div class="empty" style="padding:28px"><div class="empty-txt">등록된 적금·대출이 없습니다</div></div>`;
+}
+
+/* ── INVESTMENT ── */
+function renderInv() {
+  const el = document.getElementById('stockTable');
+  const sum = document.getElementById('invSummary');
+  if (!D.stocks.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">📈</div><div class="empty-txt">종목을 추가하세요<br><small style="font-size:11px">심볼 예: 삼성전자→005930.KS, 애플→AAPL</small></div></div>`;
+    sum.style.display = 'none'; return;
+  }
+  let cost=0, val=0;
+  const rows = D.stocks.map((s,i)=>{
+    const px  = s.currentPrice || s.avgPrice;
+    const cur = s.currency || 'KRW';
+    const c   = s.avgPrice * s.shares;
+    const v   = px * s.shares;
+    const pct = c>0?(v-c)/c*100:0;
+    cost += krw(c,cur); val += krw(v,cur);
+    return `<tr>
+      <td><span class="badge badge-blue">${s.symbol||'—'}</span></td>
+      <td style="font-weight:500">${s.name}</td>
+      <td class="num">${fmt(s.shares)}</td>
+      <td class="num">${fmt(s.avgPrice,cur==='JPY'?0:2)} <span class="muted" style="font-size:11px">${cur}</span></td>
+      <td class="num">${s.currentPrice?fmt(s.currentPrice,cur==='JPY'?0:2):'<span class="muted">미조회</span>'}</td>
+      <td>${pctHtml(pct)}</td>
+      <td class="num ${krw(v-c,cur)>=0?'green':'red'}">${krw(v-c,cur)>=0?'+':''}${fmtF(Math.round(krw(v-c,cur)))}</td>
+      <td class="num gold">${fmtF(Math.round(krw(v,cur)))}</td>
+      <td><button class="btn-danger" onclick="del('stocks',${i})">삭제</button></td>
+    </tr>`;
+  });
+  el.innerHTML = `<table>
+    <thead><tr><th>심볼</th><th>종목명</th><th>수량</th><th>평균단가</th><th>현재가</th><th>수익률</th><th>손익(원화)</th><th>평가(원화)</th><th></th></tr></thead>
+    <tbody>${rows.join('')}</tbody>
+  </table>`;
+  sum.style.display = 'block';
+  const pct=(cost>0?(val-cost)/cost*100:0);
+  sum.innerHTML = `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px;text-align:center;padding:4px 0">
+    <div><div class="card-title">총 투자원금</div><div class="card-value">${fmtW(cost)}</div></div>
+    <div><div class="card-title">총 평가금액</div><div class="card-value gold">${fmtW(val)}</div></div>
+    <div><div class="card-title">총 손익</div><div class="card-value ${val-cost>=0?'green':'red'}">${val-cost>=0?'+':''}${fmtW(val-cost)} (${pctHtml(pct)})</div></div>
+  </div>`;
+}
+
+/* ── FUND ── */
+function renderFund() {
+  const el  = document.getElementById('fundTable');
+  const sum = document.getElementById('fundSummary');
+  if (!D.funds.length) {
+    el.innerHTML = `<div class="card"><div class="empty"><div class="empty-icon">🏢</div><div class="empty-txt">펀드를 추가하세요<br><small style="font-size:11px">네이버 금융에서 펀드코드를 확인 후 입력하세요</small></div></div></div>`;
+    sum.style.display='none'; return;
+  }
+
+  let totalCost=0, totalVal=0;
+  const rows = D.funds.map((f,i) => {
+    const nav  = f.currentNav || f.purchaseNav;
+    const val  = Math.round((f.units/1000) * nav);
+    const cost = Math.round((f.units/1000) * f.purchaseNav);
+    const profit = val - cost;
+    const pct  = cost>0 ? profit/cost*100 : 0;
+    totalCost += cost; totalVal += val;
+
+    const statusBadge = f.navStatus==='ok'
+      ? `<span class="badge badge-green">조회성공</span>`
+      : f.navStatus==='fail'
+        ? `<span class="badge badge-red">조회실패</span>`
+        : `<span class="badge badge-muted">미조회</span>`;
+
+    const navCell = f.currentNav
+      ? `<span class="num">${fmt(f.currentNav,2)}원</span> <span style="font-size:10px;color:var(--text-muted)">${f.navDate||''}</span>`
+      : `<span class="muted" style="font-size:12px">미조회</span>`;
+
+    return `<tr>
+      <td style="font-weight:500;max-width:200px">${f.name}</td>
+      <td><a href="https://finance.naver.com/fund/fundDetail.naver?fundCd=${f.fundCode}" target="_blank"
+           style="font-family:var(--mono);font-size:11px;color:var(--blue);text-decoration:none">${f.fundCode||'—'}</a></td>
+      <td class="num">${fmt(f.units)}좌</td>
+      <td class="num">${fmt(f.purchaseNav,2)}원</td>
+      <td>${navCell}</td>
+      <td>${statusBadge}</td>
+      <td>${pctHtml(pct)}</td>
+      <td class="num ${profit>=0?'green':'red'}">${profit>=0?'+':''}${fmtF(profit)}</td>
+      <td class="num gold">${fmtF(val)}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-outline btn-sm" onclick="manualNavInput(${i})" style="margin-right:4px">직접입력</button>
+        <button class="btn-danger" onclick="del('funds',${i})">삭제</button>
+      </td>
+    </tr>`;
+  });
+
+  el.innerHTML = `<div class="card"><div class="tbl-wrap"><table>
+    <thead><tr><th>펀드명</th><th>코드</th><th>보유좌수</th><th>매입기준가</th><th>현재기준가</th><th>조회상태</th><th>수익률</th><th>손익</th><th>평가금액</th><th></th></tr></thead>
+    <tbody>${rows.join('')}</tbody>
+  </table></div></div>`;
+
+  sum.style.display='block';
+  const pct = totalCost>0?(totalVal-totalCost)/totalCost*100:0;
+  sum.innerHTML = `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px;text-align:center;padding:4px 0">
+    <div><div class="card-title">총 매입원금</div><div class="card-value">${fmtW(totalCost)}</div></div>
+    <div><div class="card-title">총 평가금액</div><div class="card-value gold">${fmtW(totalVal)}</div></div>
+    <div><div class="card-title">총 손익</div><div class="card-value ${totalVal-totalCost>=0?'green':'red'}">${totalVal-totalCost>=0?'+':''}${fmtW(totalVal-totalCost)} (${pctHtml(pct)})</div></div>
+  </div>`;
+}
+
+// 개별 펀드 기준가 새로고침
+async function refreshFunds() {
+  const btn = document.getElementById('fundRefreshBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin">↻</span> 조회중...';
+  let ok=0, fail=0;
+  for (const f of D.funds) {
+    if (!f.fundCode) continue;
+    const r = await fetchFundNav(f.fundCode);
+    if (r) { f.currentNav=r.nav; f.navDate=r.date; f.navStatus='ok'; ok++; }
+    else    { f.navStatus='fail'; fail++; }
+  }
+  save(); renderFund();
+  btn.disabled=false; btn.innerHTML='↻ 기준가 조회';
+  toast(ok>0 ? `${ok}개 펀드 기준가 업데이트 완료${fail>0?' ('+fail+'개 실패)':''}` : '조회 실패 — 수동 입력을 이용하세요', ok>0?'':'err');
+}
+
+// 수동 기준가 입력
+function manualNavInput(idx) {
+  const f = D.funds[idx];
+  const nav = prompt(`${f.name}\n현재 기준가를 직접 입력하세요 (원/1,000좌)\n예: 1245.67`, f.currentNav||f.purchaseNav);
+  if (nav === null) return;
+  const n = parseFloat(nav.replace(/,/g,''));
+  if (isNaN(n) || n<=0) return toast('올바른 숫자를 입력하세요','err');
+  f.currentNav = n;
+  f.navDate = new Date().toISOString().slice(0,10);
+  f.navStatus = 'ok';
+  save(); renderFund(); toast('기준가가 업데이트되었습니다');
+}
+
+/* ── SAVINGS ── */
+function renderSavings() {
+  const iEl = document.getElementById('instList');
+  if (!D.installments.length) {
+    iEl.innerHTML = `<div class="empty"><div class="empty-icon">💳</div><div class="empty-txt">적금을 추가하세요</div></div>`;
+  } else {
+    iEl.innerHTML = D.installments.map((it,i) => {
+      const c = calcInst(it);
+      return `<div class="item-card">
+        <div class="item-header">
+          <div><div class="item-name">${it.name}</div>
+            <div class="item-meta">시작: ${it.startDate} · 월 ${fmtF(it.monthlyAmount)} · 연 ${it.interestRate}% · ${it.termMonths}개월</div>
+          </div>
+          <button class="btn-danger btn-sm" onclick="del('installments',${i})">삭제</button>
+        </div>
+        <div class="item-stats">
+          <div><div class="stat-label">납입 개월</div><div class="stat-value">${c.elapsed}<span class="muted" style="font-size:12px"> / ${it.termMonths}</span></div></div>
+          <div><div class="stat-label">총 납입금</div><div class="stat-value">${fmtW(c.deposited)}</div></div>
+          <div><div class="stat-label">발생 이자</div><div class="stat-value green">+${fmtW(c.interest)}</div></div>
+          <div><div class="stat-label">현재 가치</div><div class="stat-value gold">${fmtW(c.total)}</div></div>
+        </div>
+        <div class="prog-track"><div class="prog-fill" style="width:${Math.round(c.pct*100)}%"></div></div>
+        <div class="prog-label"><span>${Math.round(c.pct*100)}% 납입</span><span>만기예상 ${fmtF(c.maturity)}</span></div>
+      </div>`;
+    }).join('');
+  }
+
+  const dEl = document.getElementById('depList');
+  if (!D.deposits.length) {
+    dEl.innerHTML = `<div class="empty"><div class="empty-icon">🏛</div><div class="empty-txt">예금을 추가하세요</div></div>`;
+  } else {
+    dEl.innerHTML = D.deposits.map((it,i) => {
+      const c = calcDep(it);
+      return `<div class="item-card">
+        <div class="item-header">
+          <div><div class="item-name">${it.name}</div>
+            <div class="item-meta">${it.startDate} ~ ${it.endDate} · 연 ${it.interestRate}% · ${it.currency||'KRW'}</div>
+          </div>
+          <button class="btn-danger btn-sm" onclick="del('deposits',${i})">삭제</button>
+        </div>
+        <div class="item-stats">
+          <div><div class="stat-label">원금</div><div class="stat-value">${fmtW(it.amount)}</div></div>
+          <div><div class="stat-label">발생 이자</div><div class="stat-value green">+${fmtW(c.interest)}</div></div>
+          <div><div class="stat-label">현재 가치</div><div class="stat-value gold">${fmtW(it.amount+c.interest)}</div></div>
+          <div><div class="stat-label">만기 금액</div><div class="stat-value">${fmtW(c.maturity)}</div></div>
+        </div>
+        <div class="prog-track"><div class="prog-fill" style="width:${Math.round(c.pct*100)}%"></div></div>
+        <div class="prog-label"><span>${Math.round(c.pct*100)}% 경과</span><span>만기 ${it.endDate}</span></div>
+      </div>`;
+    }).join('');
+  }
+}
+
+/* ── LOANS ── */
+function renderLoans() {
+  const el = document.getElementById('loanCards');
+  if (!D.loans.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">🏠</div><div class="empty-txt">대출을 추가하세요</div></div>`;
+    document.getElementById('loanSummary').innerHTML = '';
+    return;
+  }
+  let totM=0, totB=0;
+  el.innerHTML = D.loans.map((it,i) => {
+    const c = calcLoan(it);
+    totM += c.done ? 0 : c.monthly;
+    totB += c.balance;
+    return `<div class="item-card">
+      <div class="item-header">
+        <div>
+          <div class="item-name">${it.name} <span class="badge ${c.done?'badge-green':'badge-red'}">${c.done?'상환완료':'상환중'}</span></div>
+          <div class="item-meta">${it.startDate} 시작 · ${it.termMonths}개월 · 연 ${it.interestRate}% · ${it.repayType==='equal'?'원리금균등':'원금균등'}</div>
+        </div>
+        <button class="btn-danger btn-sm" onclick="del('loans',${i})">삭제</button>
+      </div>
+      <div class="item-stats">
+        <div><div class="stat-label">대출원금</div><div class="stat-value">${fmtW(it.amount)}</div></div>
+        <div><div class="stat-label">잔여원금</div><div class="stat-value red">${fmtW(c.balance)}</div></div>
+        <div><div class="stat-label">월 납입액</div><div class="stat-value">${c.done?'완납':fmtF(c.monthly)}</div></div>
+        <div><div class="stat-label">진행</div><div class="stat-value gold">${c.elapsed} / ${it.termMonths}개월</div></div>
+      </div>
+      <div class="prog-track"><div class="prog-fill" style="width:${Math.round(c.pct*100)}%;background:${c.done?'var(--green)':'var(--red)'}"></div></div>
+      <div class="prog-label"><span>${Math.round(c.pct*100)}% 상환</span><span>잔여 ${fmtF(c.balance)}</span></div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('loanSummary').innerHTML = `
+    <div class="sum-row" style="margin-top:12px">
+      <div class="sum-item"><div class="sum-label">총 잔여 부채</div><div class="sum-value red">${fmtF(totB)}</div></div>
+      <div class="sum-item"><div class="sum-label">총 월 상환액</div><div class="sum-value">${fmtF(totM)}</div></div>
+    </div>
+  `;
+}
+
+/* ── RECORDS ── */
+function renderRec() {
+  const el = document.getElementById('recTable');
+  if (!D.records.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">📋</div><div class="empty-txt">기록이 없습니다<br>오늘 기록 저장을 눌러 첫 스냅샷을 저장하세요</div></div>`;
+    return;
+  }
+  const rows = [...D.records].reverse().map(r=>`<tr>
+    <td class="num">${r.date}</td>
+    <td class="num gold">${fmtF(r.total)}</td>
+    <td class="num red">${fmtF(r.loans)}</td>
+    <td class="num">${fmtF(r.net)}</td>
+    <td class="num">${fmtF(r.stocks)}</td>
+    <td class="num">${fmtF(r.savings)}</td>
+  </tr>`).join('');
+  el.innerHTML = `<table>
+    <thead><tr><th>날짜</th><th>총자산</th><th>총부채</th><th>순자산</th><th>투자</th><th>예금·적금</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+// ══════════════════════════════════════════════
+//  RECORD SAVE / EXPORT
+// ══════════════════════════════════════════════
+function saveRecord() {
+  const T = totals();
+  const today = new Date().toISOString().slice(0,10);
+  const rec = { date:today, total:Math.round(T.total), loans:Math.round(T.loans), net:Math.round(T.net), stocks:Math.round(T.stocks), savings:Math.round(T.inst+T.dep) };
+  const idx = D.records.findIndex(r=>r.date===today);
+  if (idx>=0) D.records[idx]=rec; else D.records.push(rec);
+  D.records.sort((a,b)=>a.date.localeCompare(b.date));
+  if (D.records.length>365) D.records=D.records.slice(-365);
+  save(); renderAll(); toast(`${today} 자산 기록 저장 완료`);
+}
+
+function exportCSV() {
+  if (!D.records.length) return toast('기록이 없습니다','err');
+  const hdr = '날짜,총자산,총부채,순자산,투자,예금적금\n';
+  const body = D.records.map(r=>`${r.date},${r.total},${r.loans},${r.net},${r.stocks},${r.savings}`).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['\uFEFF'+hdr+body],{type:'text/csv;charset=utf-8;'}));
+  a.download = `자산기록_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+
+// ══════════════════════════════════════════════
+//  DELETE
+// ══════════════════════════════════════════════
+function del(key, idx) {
+  if (!confirm('삭제하시겠습니까?')) return;
+  D[key].splice(idx,1); save(); renderAll(); toast('삭제되었습니다');
+}
+
+// ══════════════════════════════════════════════
+//  MODAL
+// ══════════════════════════════════════════════
+let modalType = '';
+
+const FORMS = {
+  stock: {
+    title: '투자 종목 추가',
+    html: `
+      <div class="fg"><label class="fl">종목명 *</label><input class="fi" id="f_name" placeholder="예: 삼성전자"></div>
+      <div class="fr">
+        <div class="fg"><label class="fl">심볼 (야후파이낸스)</label><input class="fi" id="f_sym" placeholder="005930.KS, AAPL"></div>
+        <div class="fg"><label class="fl">통화 *</label><select class="fs" id="f_cur"><option value="KRW">KRW 원</option><option value="USD">USD 달러</option><option value="EUR">EUR 유로</option><option value="JPY">JPY 엔</option></select></div>
+      </div>
+      <div class="fr">
+        <div class="fg"><label class="fl">보유 수량 *</label><input class="fi" id="f_qty" type="number" placeholder="0"></div>
+        <div class="fg"><label class="fl">평균 매수단가 *</label><input class="fi" id="f_avg" type="number" placeholder="0"></div>
+      </div>
+    `
+  },
+  installment: {
+    title: '적금 추가',
+    html: `
+      <div class="fg"><label class="fl">적금명 *</label><input class="fi" id="f_name" placeholder="예: KB 정기적금"></div>
+      <div class="fr">
+        <div class="fg"><label class="fl">월 납입금액 (원) *</label><input class="fi" id="f_monthly" type="number" placeholder="300000"></div>
+        <div class="fg"><label class="fl">연 이자율 (%) *</label><input class="fi" id="f_rate" type="number" step="0.01" placeholder="3.5"></div>
+      </div>
+      <div class="fr">
+        <div class="fg"><label class="fl">시작일 *</label><input class="fi" id="f_start" type="date"></div>
+        <div class="fg"><label class="fl">만기 (개월) *</label><input class="fi" id="f_term" type="number" placeholder="12"></div>
+      </div>
+    `
+  },
+  deposit: {
+    title: '예금 추가',
+    html: `
+      <div class="fg"><label class="fl">예금명 *</label><input class="fi" id="f_name" placeholder="예: 신한 정기예금"></div>
+      <div class="fr">
+        <div class="fg"><label class="fl">원금 *</label><input class="fi" id="f_amt" type="number" placeholder="10000000"></div>
+        <div class="fg"><label class="fl">통화</label><select class="fs" id="f_cur"><option value="KRW">KRW</option><option value="USD">USD</option></select></div>
+      </div>
+      <div class="fr">
+        <div class="fg"><label class="fl">연 이자율 (%) *</label><input class="fi" id="f_rate" type="number" step="0.01" placeholder="3.5"></div>
+        <div></div>
+      </div>
+      <div class="fr">
+        <div class="fg"><label class="fl">시작일 *</label><input class="fi" id="f_start" type="date"></div>
+        <div class="fg"><label class="fl">만기일 *</label><input class="fi" id="f_end" type="date"></div>
+      </div>
+    `
+  },
+  loan: {
+    title: '대출 추가',
+    html: `
+      <div class="fg"><label class="fl">대출명 *</label><input class="fi" id="f_name" placeholder="예: 주택담보대출"></div>
+      <div class="fg"><label class="fl">대출원금 (원) *</label><input class="fi" id="f_amt" type="number" placeholder="100000000"></div>
+      <div class="fr">
+        <div class="fg"><label class="fl">연 이자율 (%) *</label><input class="fi" id="f_rate" type="number" step="0.01" placeholder="4.5"></div>
+        <div class="fg"><label class="fl">대출기간 (개월) *</label><input class="fi" id="f_term" type="number" placeholder="360"></div>
+      </div>
+      <div class="fr">
+        <div class="fg"><label class="fl">대출 시작일 *</label><input class="fi" id="f_start" type="date"></div>
+        <div class="fg"><label class="fl">상환 방식 *</label><select class="fs" id="f_repay"><option value="equal">원리금 균등</option><option value="principal">원금 균등</option></select></div>
+      </div>
+    `
+  },
+  fund: {
+    title: '펀드 추가',
+    html: `
+      <div class="fg"><label class="fl">펀드명 *</label><input class="fi" id="f_name" placeholder="예: 미래에셋 글로벌혁신기업 펀드"></div>
+      <div class="fg">
+        <label class="fl">네이버 금융 펀드 코드 *</label>
+        <input class="fi" id="f_code" placeholder="예: KR5223941338">
+        <div style="font-size:11px;color:var(--text-muted);margin-top:5px">네이버 금융 → 펀드 상세 URL에서 fundCd= 뒤의 값을 입력하세요</div>
+      </div>
+      <div class="fr">
+        <div class="fg"><label class="fl">보유 좌수 *</label><input class="fi" id="f_units" type="number" placeholder="1000000"><div style="font-size:11px;color:var(--text-muted);margin-top:4px">좌 단위 (1,000좌 = 기준가 1개)</div></div>
+        <div class="fg"><label class="fl">매입 기준가 (원/1000좌) *</label><input class="fi" id="f_nav" type="number" step="0.01" placeholder="1250.00"></div>
+      </div>
+    `
+  }
+};
+
+function openModal(type) {
+  modalType = type;
+  const f = FORMS[type];
+  document.getElementById('modalTitle').textContent = f.title;
+  document.getElementById('modalBody').innerHTML = f.html + `
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">취소</button>
+      <button class="btn btn-primary" onclick="submitModal()">추가</button>
+    </div>
+  `;
+  document.querySelectorAll('.fi[type=date]').forEach(el => { if (!el.value) el.value = new Date().toISOString().slice(0,10); });
+  document.getElementById('modalBg').classList.add('open');
+}
+
+function closeModal() { document.getElementById('modalBg').classList.remove('open'); }
+function bgClose(e) { if (e.target===document.getElementById('modalBg')) closeModal(); }
+
+const gv = id => { const e=document.getElementById(id); return e?e.value.trim():''; };
+const gn = id => { const e=document.getElementById(id); return e?parseFloat(e.value)||0:0; };
+
+function submitModal() {
+  const name = gv('f_name');
+  if (!name) return toast('이름을 입력하세요','err');
+
+  if (modalType === 'stock') {
+    const qty=gn('f_qty'), avg=gn('f_avg');
+    if (!qty||!avg) return toast('수량과 단가를 입력하세요','err');
+    D.stocks.push({ name, symbol:gv('f_sym').toUpperCase(), currency:gv('f_cur'), shares:qty, avgPrice:avg, currentPrice:null });
+
+  } else if (modalType === 'installment') {
+    const m=gn('f_monthly'), r=gn('f_rate'), t=gn('f_term'), s=gv('f_start');
+    if (!m||!r||!t||!s) return toast('모든 항목을 입력하세요','err');
+    D.installments.push({ name, monthlyAmount:m, interestRate:r, termMonths:t, startDate:s });
+
+  } else if (modalType === 'deposit') {
+    const a=gn('f_amt'), r=gn('f_rate'), s=gv('f_start'), e=gv('f_end');
+    if (!a||!r||!s||!e) return toast('모든 항목을 입력하세요','err');
+    D.deposits.push({ name, amount:a, interestRate:r, startDate:s, endDate:e, currency:gv('f_cur') });
+
+  } else if (modalType === 'loan') {
+    const a=gn('f_amt'), r=gn('f_rate'), t=gn('f_term'), s=gv('f_start');
+    if (!a||!r||!t||!s) return toast('모든 항목을 입력하세요','err');
+    D.loans.push({ name, amount:a, interestRate:r, termMonths:t, startDate:s, repayType:gv('f_repay') });
+
+  } else if (modalType === 'fund') {
+    const code=gv('f_code'), units=gn('f_units'), nav=gn('f_nav');
+    if (!code||!units||!nav) return toast('모든 항목을 입력하세요','err');
+    D.funds.push({ name, fundCode:code.trim(), units, purchaseNav:nav, currentNav:null, navDate:null, navStatus:null });
+  }
+
+  save(); closeModal(); renderAll(); toast(`"${name}" 추가 완료`);
+}
+
+// ══════════════════════════════════════════════
+//  구글 시트 연동 (Google Apps Script)
+// ══════════════════════════════════════════════
+
+function openGasModal() {
+  const el = document.getElementById('gasUrlInput');
+  if (el) el.value = D.gasUrl || '';
+  document.getElementById('gasTestResult').textContent = '';
+  document.getElementById('gasSyncResult').style.display = 'none';
+  document.getElementById('gasBg').classList.add('open');
+}
+function closeGasModal() { document.getElementById('gasBg').classList.remove('open'); }
+
+function saveGasUrl() {
+  const url = document.getElementById('gasUrlInput').value.trim();
+  D.gasUrl = url;
+  save();
+  updateGasUI();
+  closeGasModal();
+  toast(url ? 'URL이 저장되었습니다' : 'URL이 삭제되었습니다');
+}
+
+function updateGasUI() {
+  const btn = document.getElementById('gasButtons');
+  const st  = document.getElementById('gasStatus');
+  if (!btn || !st) return;
+  if (D.gasUrl) {
+    btn.style.display = 'flex';
+    st.innerHTML = `<span style="color:var(--green)">✔</span> 연동 설정됨 — <span style="font-family:var(--mono);font-size:11px;color:var(--text-muted)">${D.gasUrl.slice(0,50)}...</span>`;
+  } else {
+    btn.style.display = 'none';
+    st.textContent = '구글 시트 URL을 설정하면 자산 데이터를 자동으로 기록할 수 있습니다.';
+    st.style.color = 'var(--text-muted)';
+  }
+}
+
+// ── 연결 테스트 (GET)
+async function gasTest() {
+  const url = (document.getElementById('gasUrlInput')?.value || D.gasUrl || '').trim();
+  if (!url) return setTestResult('URL을 먼저 입력하세요', 'red');
+  setTestResult('연결 중...', '');
+  try {
+    const res = await fetch(url, { method: 'GET', mode: 'cors' });
+    const j   = await res.json();
+    if (j.success) setTestResult(`✔ 연결 성공 — ${j.sheet || '구글 시트'}`, 'var(--green)');
+    else           setTestResult('✗ 응답 오류: ' + (j.error||''), 'var(--red)');
+  } catch(e) {
+    setTestResult('✗ 연결 실패 — URL을 확인하거나 배포 권한을 재확인하세요', 'var(--red)');
+  }
+}
+function setTestResult(msg, color) {
+  const el = document.getElementById('gasTestResult');
+  if (el) { el.textContent = msg; el.style.color = color; }
+}
+
+// ── 데이터 전송 (POST, no-cors로 CORS 우회)
+async function gasSync(action) {
+  const url = D.gasUrl?.trim();
+  if (!url) { openGasModal(); return toast('먼저 Apps Script URL을 설정하세요', 'err'); }
+
+  const T    = totals();
+  const today = new Date().toISOString().slice(0,10);
+  const todayRecord = {
+    date: today,
+    total:   Math.round(T.total),
+    loans:   Math.round(T.loans),
+    net:     Math.round(T.net),
+    stocks:  Math.round(T.stocks),
+    funds:   Math.round(T.funds),
+    savings: Math.round(T.inst + T.dep)
+  };
+
+  const payload = action === 'record'
+    ? { action: 'record', data: todayRecord }
+    : {
+        action: 'sync',
+        data: {
+          stocks:       D.stocks,
+          funds:        D.funds,
+          installments: D.installments,
+          deposits:     D.deposits,
+          loans:        D.loans,
+          rates:        D.rates,
+          updatedAt:    new Date().toLocaleString('ko-KR'),
+          todayRecord
+        }
+      };
+
+  // 전송 중 UI
+  const res = document.getElementById('gasSyncResult');
+  if (res) { res.style.display='block'; res.innerHTML='<span style="color:var(--text-muted)"><span class="spin">↻</span> 전송 중...</span>'; }
+  toast(action === 'record' ? '구글 시트에 전송 중...' : '전체 데이터 동기화 중...');
+
+  try {
+    // no-cors: CORS 문제 없이 전송 가능. 응답 본문은 읽을 수 없음 (opaque)
+    await fetch(url, {
+      method:  'POST',
+      mode:    'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body:    JSON.stringify(payload)
+    });
+
+    // 로컬에도 기록 저장
+    if (action === 'record' || action === 'sync') {
+      const idx = D.records.findIndex(r => r.date === today);
+      if (idx >= 0) D.records[idx] = { ...D.records[idx], ...todayRecord };
+      else { D.records.push(todayRecord); D.records.sort((a,b)=>a.date.localeCompare(b.date)); }
+      if (D.records.length > 365) D.records = D.records.slice(-365);
+      save(); renderRec();
+    }
+
+    const msg = action === 'record'
+      ? `✔ 오늘(${today}) 기록이 구글 시트에 저장되었습니다`
+      : `✔ 전체 데이터가 구글 시트에 동기화되었습니다`;
+    if (res) { res.innerHTML = `<span style="color:var(--green)">${msg}</span>`; }
+    toast(msg);
+
+  } catch(e) {
+    const err = '✗ 전송 실패 — URL 및 배포 설정을 확인하세요';
+    if (res) { res.innerHTML = `<span style="color:var(--red)">${err}</span>`; }
+    toast(err, 'err');
+  }
+}
+
+// ══════════════════════════════════════════════
+//  TOAST / TABS
+// ══════════════════════════════════════════════
+function toast(msg, type='') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (type?' '+type:'');
+  setTimeout(() => el.className='toast', 2800);
+}
+
+function switchTab(name) {
+  const names = ['dashboard','investment','fund','savings','loans','records'];
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', names[i]===name));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  renderAll();
+}
+
+// ══════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════
+(async function init() {
+  renderAll();
+  updateGasUI();
+  if (D.rateTs) {
+    const d = new Date(D.rateTs);
+    document.getElementById('lastUpdate').textContent = `갱신 ${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
+  }
+  const stale = !D.rateTs || (Date.now()-new Date(D.rateTs))>3*3600*1000;
+  if (stale) {
+    const ok = await fetchRates();
+    if (ok) { renderAll(); toast('환율 자동 업데이트 완료'); }
+  }
+})();
+</script>
+</body>
+</html>
