@@ -193,9 +193,13 @@ tr:last-child td{border-bottom:none}tr:hover td{background:rgba(255,255,255,.015
   <div class="section">
     <div class="sec-hd">
       <div class="sec-title">거래내역</div>
-      <div style="display:flex;gap:7px">
-        <button class="ibt buy" style="padding:5px 12px;font-size:12px" onclick="openTradeModal('buy')">+ 매수</button>
-        <button class="ibt sell" style="padding:5px 12px;font-size:12px" onclick="openTradeModal('sell')">+ 매도</button>
+      <div style="display:flex;gap:7px;flex-wrap:wrap">
+        <button class="ibt buy" style="padding:5px 12px;font-size:12px" onclick="openTradeModal('buy','stock')">📈 주식 매수</button>
+        <button class="ibt sell" style="padding:5px 12px;font-size:12px" onclick="openTradeModal('sell','stock')">📉 주식 매도</button>
+        <button class="ibt gold" style="padding:5px 12px;font-size:12px" onclick="openTradeModal('buy','fund')">🏢 펀드 매수</button>
+        <button class="ibt sell" style="padding:5px 12px;font-size:12px;border-color:var(--purple);color:var(--purple)" onclick="openTradeModal('sell','fund')">🏢 펀드 매도</button>
+        <button class="ibt gold" style="padding:5px 12px;font-size:12px;border-color:#f6c90e;color:#f6c90e" onclick="openTradeModal('buy','gold')">🪙 금 매수</button>
+        <button class="ibt sell" style="padding:5px 12px;font-size:12px;border-color:#f6c90e;color:#f6c90e" onclick="openTradeModal('sell','gold')">🪙 금 매도</button>
       </div>
     </div>
     <div class="card" id="realizedCard" style="display:none;margin-bottom:12px"></div>
@@ -830,15 +834,63 @@ function manualGoldPrice(idx){
 function renderTrade(){
   const el=document.getElementById('tradeTable'),rc=document.getElementById('realizedCard');
   const pl=realizedTotal();
-  if(D.transactions.length>0){rc.style.display='block';rc.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center"><span style="color:var(--text-muted);font-size:13px">실현 손익 합계 (주가+환율)</span><span class="num ${pl>=0?'green':'red'}" style="font-size:18px;font-weight:700">${pl>=0?'+':''}${fmtF(pl)}</span></div>`;}
+  if(D.transactions.length>0){
+    rc.style.display='block';
+    rc.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center"><span style="color:var(--text-muted);font-size:13px">실현 손익 합계</span><span class="num ${pl>=0?'green':'red'}" style="font-size:18px;font-weight:700">${pl>=0?'+':''}${fmtF(pl)}</span></div>`;
+  }
   if(!D.transactions.length){el.innerHTML=`<div class="empty"><div class="empty-icon">🔄</div><div>매수/매도를 등록하면 여기에 표시됩니다</div></div>`;return;}
-  el.innerHTML=`<table><thead><tr><th>날짜</th><th>구분</th><th>종목명</th><th>심볼</th><th>수량</th><th>단가</th><th>매입환율</th><th>거래금액(원)</th><th>실현손익</th><th>메모</th><th></th></tr></thead><tbody>${[...D.transactions].sort((a,b)=>b.date.localeCompare(a.date)).map(t=>{
-    const isBuy=t.type==='buy';const cur=t.currency||'KRW';const isForex=cur!=='KRW';
-    const txAmtKRW=t.purchaseRate?t.shares*t.price*t.purchaseRate:Math.round(krw(t.shares*t.price,cur));
-    const rateCell=isForex?(t.purchaseRate?`<span class="num" style="font-size:12px">${fmt(t.purchaseRate)}</span><span class="muted" style="font-size:10px"> 원/${cur}</span>`:'<span class="muted" style="font-size:11px">미기록</span>'):'<span class="muted">—</span>';
-    const plHTML=!isBuy?(((t.realizedPL||0)>=0?'<span class="green">+':'<span class="red">')+fmtF(t.realizedPL||0)+'</span>'):'—';
-    return`<tr><td class="num">${t.date}</td><td><span class="badge ${isBuy?'bg-green':'bg-red'}">${isBuy?'매수':'매도'}</span></td><td style="font-weight:500">${t.name}</td><td><span class="badge bg-blue" style="font-size:10px">${t.symbol||'—'}</span></td><td class="num">${fmt(t.shares,4)}</td><td class="num">${fmt(t.price,2)} <span class="muted" style="font-size:10px">${cur}</span></td><td>${rateCell}</td><td class="num">${fmtF(Math.round(txAmtKRW))}</td><td class="num">${plHTML}</td><td>${t.note?`<span class="muted" style="font-size:11px">${t.note}</span>`:''}</td><td><button class="ibt del" onclick="delTrade('${t.id}')">삭제</button></td></tr>`;
-  }).join('')}</tbody></table>`;
+
+  const assetIcon={'stock':'📈','fund':'🏢','gold':'🪙'};
+  const assetLabel={'stock':'주식/ETF','fund':'펀드','gold':'금현물'};
+  const rows=[...D.transactions].sort((a,b)=>b.date.localeCompare(a.date)).map(t=>{
+    const isBuy=t.type==='buy';
+    const asset=t.assetType||'stock';
+    const cur=t.currency||'KRW';
+    const isForex=cur!=='KRW';
+
+    // 거래금액(원화)
+    let txAmtKRW=0;
+    if(asset==='gold'){
+      txAmtKRW=Math.round(t.grams*t.price);
+    }else if(asset==='fund'){
+      txAmtKRW=Math.round((t.units/1000)*t.nav);
+    }else{
+      txAmtKRW=t.purchaseRate?Math.round(t.shares*t.price*t.purchaseRate):Math.round(krw(t.shares*t.price,cur));
+    }
+
+    // 수량/단가 셀
+    let qtyCell='',priceCell='',rateCell='<span class="muted">—</span>';
+    if(asset==='gold'){
+      qtyCell=`${fmt(t.grams,3)} g`;
+      priceCell=`${fmt(t.price)} 원/g`;
+    }else if(asset==='fund'){
+      qtyCell=`${fmt(t.units)}좌`;
+      priceCell=`${fmt(t.nav,2)} 원/천좌`;
+    }else{
+      qtyCell=fmt(t.shares,4);
+      priceCell=`${fmt(t.price,2)} <span class="muted" style="font-size:10px">${cur}</span>`;
+      if(isForex) rateCell=t.purchaseRate?`<span class="num" style="font-size:12px">${fmt(t.purchaseRate)}</span><span class="muted" style="font-size:10px"> 원/${cur}</span>`:'<span class="muted" style="font-size:11px">미기록</span>';
+    }
+
+    const plHTML=!isBuy&&(t.realizedPL!=null)
+      ?((t.realizedPL>=0?'<span class="green">+':'<span class="red">')+fmtF(t.realizedPL)+'</span>')
+      :'—';
+
+    return`<tr>
+      <td class="num">${t.date}</td>
+      <td><span class="badge ${isBuy?'bg-green':'bg-red'}">${isBuy?'매수':'매도'}</span></td>
+      <td><span style="font-size:11px">${assetIcon[asset]||''} ${assetLabel[asset]||asset}</span></td>
+      <td style="font-weight:500">${t.name}</td>
+      <td class="num">${qtyCell}</td>
+      <td class="num">${priceCell}</td>
+      <td>${rateCell}</td>
+      <td class="num">${fmtF(txAmtKRW)}</td>
+      <td class="num">${plHTML}</td>
+      <td>${t.note?`<span class="muted" style="font-size:11px">${t.note}</span>`:''}</td>
+      <td><button class="ibt del" onclick="delTrade('${t.id}')">삭제</button></td>
+    </tr>`;
+  });
+  el.innerHTML=`<table><thead><tr><th>날짜</th><th>구분</th><th>자산</th><th>이름</th><th>수량</th><th>단가</th><th>환율</th><th>거래금액(원)</th><th>실현손익</th><th>메모</th><th></th></tr></thead><tbody>${rows.join('')}</tbody></table>`;
 }
 
 function renderFund(){
@@ -943,26 +995,33 @@ function delStock(idx){
   D.stocks.splice(idx,1);save();renderAll();toast('삭제되었습니다');
 }
 function delTrade(id){
-  if(!confirm('거래를 삭제하면 종목 수량/평균단가가 원복됩니다. 계속하시겠습니까?'))return;
+  if(!confirm('거래를 삭제하면 보유량/평균단가가 원복됩니다. 계속하시겠습니까?'))return;
   const tx=D.transactions.find(t=>t.id===id);
   if(tx){
-    const si=D.stocks.findIndex(s=>s.symbol===tx.symbol||s.name===tx.name);
-    if(si>=0){
-      const s=D.stocks[si];
-      if(tx.type==='buy'){
-        const ns=s.shares-tx.shares;
-        if(ns<=0){D.stocks.splice(si,1);}
-        else{
-          // 원가 역산
-          s.avgPrice=(s.avgPrice*s.shares-tx.price*tx.shares)/ns;
-          // 환율 역산
-          if(tx.purchaseRate&&s.avgPurchaseRate){
-            s.avgPurchaseRate=(s.avgPurchaseRate*s.shares-tx.purchaseRate*tx.shares)/ns;
-          }
-          s.shares=ns;
-        }
-      }else{
-        s.shares+=tx.shares;
+    const asset=tx.assetType||'stock';
+    if(asset==='stock'){
+      const si=D.stocks.findIndex(s=>s.symbol===tx.symbol||s.name===tx.name);
+      if(si>=0){
+        const s=D.stocks[si];
+        if(tx.type==='buy'){
+          const ns=s.shares-tx.shares;
+          if(ns<=0)D.stocks.splice(si,1);
+          else{s.avgPrice=(s.avgPrice*s.shares-tx.price*tx.shares)/ns;if(tx.purchaseRate&&s.avgPurchaseRate)s.avgPurchaseRate=(s.avgPurchaseRate*s.shares-tx.purchaseRate*tx.shares)/ns;s.shares=ns;}
+        }else s.shares+=tx.shares;
+      }
+    }else if(asset==='fund'){
+      const fi=D.funds.findIndex(f=>f.name===tx.name);
+      if(fi>=0){
+        const f=D.funds[fi];
+        if(tx.type==='buy'){const ns=f.units-tx.units;if(ns<=0)D.funds.splice(fi,1);else{f.purchaseNav=(f.purchaseNav*f.units-tx.nav*tx.units)/ns;f.units=ns;}}
+        else f.units+=tx.units;
+      }
+    }else if(asset==='gold'){
+      const gi=D.goldHoldings.findIndex(g=>g.name===tx.name);
+      if(gi>=0){
+        const g=D.goldHoldings[gi];
+        if(tx.type==='buy'){const ng=g.grams-tx.grams;if(ng<=0)D.goldHoldings.splice(gi,1);else{g.avgPrice=(g.avgPrice*g.grams-tx.price*tx.grams)/ng;g.grams=ng;}}
+        else g.grams+=tx.grams;
       }
     }
     D.transactions=D.transactions.filter(t=>t.id!==id);
@@ -1225,58 +1284,142 @@ function submitModal(){
 // ════════════════════════════════
 //  TRADE MODAL
 // ════════════════════════════════
-let _tType='buy',_tStkIdx=-1;
-function openTradeModal(type,stockIdx=-1){
-  _tType=type;_tStkIdx=stockIdx;
-  document.getElementById('tradeTitle').textContent=type==='buy'?'📈 매수 등록':'📉 매도 등록';
-  const s=stockIdx>=0?D.stocks[stockIdx]:null;
+let _tType='buy',_tStkIdx=-1,_tAsset='stock';
+function openTradeModal(type,assetType='stock',stockIdx=-1){
+  _tType=type;_tStkIdx=stockIdx;_tAsset=assetType;
+  const icons={'stock':'📈','fund':'🏢','gold':'🪙'};
+  const labels={'stock':type==='buy'?'주식/ETF 매수':'주식/ETF 매도','fund':type==='buy'?'펀드 매수':'펀드 매도','gold':type==='buy'?'금 현물 매수':'금 현물 매도'};
+  document.getElementById('tradeTitle').textContent=`${icons[assetType]} ${labels[assetType]}`;
   const today=new Date().toISOString().slice(0,10);
-  const defCur=s?s.currency||'KRW':'KRW';
-  const defRate=defCur==='KRW'?'1':(D.rates[defCur]||'');
-  document.getElementById('tradeBody').innerHTML=`
-    ${D.stocks.length?`<div class="fg"><label class="fl">기존 종목 선택 (선택사항)</label><select class="fs" id="t_pick" onchange="pickTradeStock(this.value)"><option value="">— 새 종목 직접 입력 —</option>${D.stocks.map((ss,i)=>`<option value="${i}" ${stockIdx===i?'selected':''}>${ss.name} (${ss.symbol||'없음'})</option>`).join('')}</select></div>`:'' }
-    <div class="fg"><label class="fl">심볼 검색</label>
-      <div style="display:flex;gap:7px"><input class="fi" id="t_search" placeholder="종목명 또는 심볼 검색"><button class="btn btn-outline btn-sm" id="t_search_btn" onclick="doSymSearch('t_search','t_symRes','applyTradeSym')">검색</button></div>
-      <div class="sym-results" id="t_symRes"></div>
-    </div>
-    <div class="fr">
-      <div class="fg"><label class="fl">종목명 *</label><input class="fi" id="t_name" value="${s?s.name:''}" placeholder="엔비디아"></div>
-      <div class="fg"><label class="fl">심볼 <span style="font-weight:400;color:var(--text-muted)">(직접 입력 후 → 버튼)</span></label>
-        <div style="display:flex;gap:6px">
-          <input class="fi" id="t_sym" value="${s?s.symbol||'':''}" placeholder="NVDA" style="flex:1">
-          <button class="btn btn-outline btn-sm" onclick="applyDirectSym(gv('t_sym'),'t_symRes')" style="white-space:nowrap;border-color:var(--gold);color:var(--gold)">→ 적용</button>
+  let body='';
+
+  if(assetType==='stock'){
+    const s=stockIdx>=0?D.stocks[stockIdx]:null;
+    const defCur=s?s.currency||'KRW':'KRW';
+    const defRate=defCur==='KRW'?'1':(D.rates[defCur]||'');
+    body=`
+      ${D.stocks.length?`<div class="fg"><label class="fl">기존 종목 선택 (선택사항)</label><select class="fs" id="t_pick" onchange="pickTradeStock(this.value)"><option value="">— 새 종목 직접 입력 —</option>${D.stocks.map((ss,i)=>`<option value="${i}" ${stockIdx===i?'selected':''}>${ss.name} (${ss.symbol||'없음'})</option>`).join('')}</select></div>`:''}
+      <div class="fg"><label class="fl">심볼 검색</label>
+        <div style="display:flex;gap:7px"><input class="fi" id="t_search" placeholder="종목명 또는 심볼 검색"><button class="btn btn-outline btn-sm" id="t_search_btn" onclick="doSymSearch('t_search','t_symRes','applyTradeSym')">검색</button></div>
+        <div class="sym-results" id="t_symRes"></div>
+      </div>
+      <div class="fr">
+        <div class="fg"><label class="fl">종목명 *</label><input class="fi" id="t_name" value="${s?s.name:''}" placeholder="엔비디아"></div>
+        <div class="fg"><label class="fl">심볼</label>
+          <div style="display:flex;gap:6px"><input class="fi" id="t_sym" value="${s?s.symbol||'':''}" placeholder="NVDA" style="flex:1"><button class="btn btn-outline btn-sm" onclick="applyDirectSym(gv('t_sym'),'t_symRes')" style="white-space:nowrap;border-color:var(--gold);color:var(--gold)">→ 적용</button></div>
         </div>
       </div>
-    </div>
-    <div class="fr">
-      <div class="fg"><label class="fl">통화 *</label>
-        <select class="fs" id="t_cur" onchange="onCurChange(this.value)">
-          <option value="KRW" ${defCur==='KRW'?'selected':''}>KRW 원</option>
-          <option value="USD" ${defCur==='USD'?'selected':''}>USD 달러</option>
-          <option value="EUR" ${defCur==='EUR'?'selected':''}>EUR 유로</option>
-          <option value="JPY" ${defCur==='JPY'?'selected':''}>JPY 엔</option>
+      <div class="fr">
+        <div class="fg"><label class="fl">통화 *</label>
+          <select class="fs" id="t_cur" onchange="onCurChange(this.value)">
+            <option value="KRW" ${defCur==='KRW'?'selected':''}>KRW 원</option>
+            <option value="USD" ${defCur==='USD'?'selected':''}>USD 달러</option>
+            <option value="EUR" ${defCur==='EUR'?'selected':''}>EUR 유로</option>
+            <option value="JPY" ${defCur==='JPY'?'selected':''}>JPY 엔</option>
+          </select>
+        </div>
+        <div class="fg"><label class="fl">거래 날짜 *</label><input class="fi" id="t_date" type="date" value="${today}"></div>
+      </div>
+      <div class="fr">
+        <div class="fg"><label class="fl">수량 *</label><input class="fi" id="t_qty" type="number" step="any" placeholder="0"></div>
+        <div class="fg"><label class="fl">단가 *</label><input class="fi" id="t_price" type="number" step="any" placeholder="0"></div>
+      </div>
+      <div class="fg">
+        <label class="fl" id="rateLabel">📌 거래 당시 환율 (원/${defCur}) *</label>
+        <input class="fi" id="t_purchaseRate" type="number" step="any" value="${defRate}" placeholder="예: 1370">
+        <div class="hint" id="rateHint">${defCur==='KRW'?'KRW는 환율 1 (자동 적용)':'현재 환율: '+fmt(D.rates[defCur]||0)+' 원/'+defCur+' — 거래 당시 실제 환율을 입력하세요'}</div>
+      </div>
+      ${type==='sell'&&s?`<div class="fg"><div style="background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:9px 13px;font-size:12px;color:var(--text-muted)">평균 매수단가: <strong style="color:var(--text);font-family:var(--mono)">${fmt(s.avgPrice,2)} ${s.currency||'KRW'}</strong> &nbsp;·&nbsp; 보유: <strong style="color:var(--text);font-family:var(--mono)">${fmt(s.shares,4)}</strong>주</div></div>`:''}
+    `;
+
+  }else if(assetType==='fund'){
+    const list=D.funds.map((f,i)=>`<option value="${i}">${f.name}</option>`).join('');
+    body=`
+      <div class="fg"><label class="fl">펀드 선택 ${D.funds.length?'':'(등록된 펀드 없음 — 펀드 탭에서 먼저 추가하세요)'}</label>
+        <select class="fs" id="t_fundIdx" onchange="onFundSelect(this.value)">
+          <option value="">— 직접 입력 —</option>${list}
         </select>
       </div>
-      <div class="fg"><label class="fl">거래 날짜 *</label><input class="fi" id="t_date" type="date" value="${today}"></div>
-    </div>
-    <div class="fr">
-      <div class="fg"><label class="fl">수량 *</label><input class="fi" id="t_qty" type="number" step="any" placeholder="0"></div>
-      <div class="fg"><label class="fl">단가 *</label><input class="fi" id="t_price" type="number" step="any" placeholder="0"></div>
-    </div>
-    <div class="fg">
-      <label class="fl" id="rateLabel">📌 거래 당시 환율 (원/${defCur}) *</label>
-      <input class="fi" id="t_purchaseRate" type="number" step="any" value="${defRate}" placeholder="예: 1370">
-      <div class="hint" id="rateHint">${defCur==='KRW'?'KRW는 환율 1 (자동 적용)':'현재 환율: '+fmt(D.rates[defCur]||0)+' 원/'+defCur+' — 거래 당시 실제 환율을 입력하세요'}</div>
-    </div>
-    ${type==='sell'&&s?`<div class="fg"><div style="background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:9px 13px;font-size:12px;color:var(--text-muted)">평균 매수단가: <strong style="color:var(--text);font-family:var(--mono)">${fmt(s.avgPrice,2)} ${s.currency||'KRW'}</strong> &nbsp;·&nbsp; 보유: <strong style="color:var(--text);font-family:var(--mono)">${fmt(s.shares,4)}</strong>주 &nbsp;·&nbsp; 평균 매입환율: <strong style="color:var(--gold);font-family:var(--mono)">${s.avgPurchaseRate?fmt(s.avgPurchaseRate)+'원/'+s.currency:'미기록'}</strong></div></div>`:''}
-    <div class="fg"><label class="fl">메모</label><input class="fi" id="t_note" placeholder="선택 입력"></div>
-    <div class="modal-footer"><button class="btn btn-outline btn-sm" onclick="closeTrade()">취소</button><button class="btn btn-primary btn-sm" onclick="submitTrade()">${type==='buy'?'매수 등록':'매도 등록'}</button></div>
-  `;
+      <div class="fg"><label class="fl">펀드명 *</label><input class="fi" id="t_name" placeholder="펀드명 입력"></div>
+      <div class="fr">
+        <div class="fg"><label class="fl">거래 날짜 *</label><input class="fi" id="t_date" type="date" value="${today}"></div>
+        <div class="fg"><label class="fl">거래 기준가 (원/1,000좌) *</label><input class="fi" id="t_nav" type="number" step="any" placeholder="예: 1250.00"></div>
+      </div>
+      <div class="fg">
+        <label class="fl">${type==='buy'?'매수 좌수 *':'매도 좌수 *'}</label>
+        <input class="fi" id="t_units" type="number" step="any" placeholder="예: 1000000">
+        <div class="hint">1,000좌 = 기준가 1개 단위 (거래금액 = 좌수/1000 × 기준가)</div>
+      </div>
+      ${type==='sell'?`<div class="fg" id="fundHoldInfo"></div>`:''}
+    `;
+
+  }else if(assetType==='gold'){
+    const list=D.goldHoldings.map((g,i)=>`<option value="${i}">${g.name} (${fmt(g.grams,3)}g)</option>`).join('');
+    const spotPrice=D._goldSpot?.price||D.goldHoldings.find(g=>g.currentPrice)?.currentPrice||'';
+    body=`
+      <div class="fg"><label class="fl">금 자산 선택 ${D.goldHoldings.length?'':'(등록된 금 없음 — 투자 탭에서 먼저 추가하세요)'}</label>
+        <select class="fs" id="t_goldIdx" onchange="onGoldSelect(this.value)">
+          <option value="">— 직접 입력 —</option>${list}
+        </select>
+      </div>
+      <div class="fg"><label class="fl">이름 *</label><input class="fi" id="t_name" placeholder="KRX 금 현물"></div>
+      <div class="fr">
+        <div class="fg"><label class="fl">거래 날짜 *</label><input class="fi" id="t_date" type="date" value="${today}"></div>
+        <div class="fg"><label class="fl">거래 단가 (원/g) *</label><input class="fi" id="t_price" type="number" step="any" value="${spotPrice}" placeholder="예: 95000"><div class="hint">현재 시세: ${spotPrice?fmt(spotPrice)+'원/g':'미조회 — ↻ 시세 조회 후 재시도'}</div></div>
+      </div>
+      <div class="fg">
+        <label class="fl">${type==='buy'?'매수량 (g) *':'매도량 (g) *'}</label>
+        <input class="fi" id="t_grams" type="number" step="any" placeholder="예: 10.5">
+      </div>
+      ${type==='sell'?`<div class="fg" id="goldHoldInfo"></div>`:''}
+    `;
+  }
+
+  body+=`<div class="fg"><label class="fl">메모</label><input class="fi" id="t_note" placeholder="선택 입력"></div>
+    <div class="modal-footer"><button class="btn btn-outline btn-sm" onclick="closeTrade()">취소</button><button class="btn btn-primary btn-sm" onclick="submitTrade()">${type==='buy'?'매수 등록':'매도 등록'}</button></div>`;
+
+  document.getElementById('tradeBody').innerHTML=body;
   document.getElementById('tradeBg').classList.add('open');
-  const si=document.getElementById('t_search');
-  if(si)si.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();doSymSearch('t_search','t_symRes','applyTradeSym');}});
+  if(assetType==='stock'){
+    const si=document.getElementById('t_search');
+    if(si)si.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();doSymSearch('t_search','t_symRes','applyTradeSym');}});
+  }
+  if(assetType==='fund'&&type==='sell') renderFundHoldInfo();
+  if(assetType==='gold'&&type==='sell') renderGoldHoldInfo();
 }
 function closeTrade(){document.getElementById('tradeBg').classList.remove('open');}
+
+function onFundSelect(val){
+  if(!val&&val!=='0')return;
+  const f=D.funds[parseInt(val)];if(!f)return;
+  const nEl=document.getElementById('t_name'),navEl=document.getElementById('t_nav');
+  if(nEl)nEl.value=f.name;
+  if(navEl)navEl.value=f.currentNav||f.purchaseNav||'';
+  renderFundHoldInfo(parseInt(val));
+}
+function renderFundHoldInfo(idx){
+  const el=document.getElementById('fundHoldInfo');if(!el)return;
+  const i=idx!=null?idx:parseInt(document.getElementById('t_fundIdx')?.value||'-1');
+  if(i<0||!D.funds[i]){el.innerHTML='';return;}
+  const f=D.funds[i];
+  el.innerHTML=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:9px 13px;font-size:12px;color:var(--text-muted)">보유: <strong style="color:var(--text);font-family:var(--mono)">${fmt(f.units)}좌</strong> &nbsp;·&nbsp; 매입기준가: <strong style="color:var(--text);font-family:var(--mono)">${fmt(f.purchaseNav,2)}원</strong> &nbsp;·&nbsp; 현재기준가: <strong style="color:var(--gold);font-family:var(--mono)">${f.currentNav?fmt(f.currentNav,2)+'원':'미조회'}</strong></div>`;
+}
+
+function onGoldSelect(val){
+  if(!val&&val!=='0')return;
+  const g=D.goldHoldings[parseInt(val)];if(!g)return;
+  const nEl=document.getElementById('t_name'),pEl=document.getElementById('t_price');
+  if(nEl)nEl.value=g.name;
+  if(pEl&&g.currentPrice)pEl.value=g.currentPrice;
+  renderGoldHoldInfo(parseInt(val));
+}
+function renderGoldHoldInfo(idx){
+  const el=document.getElementById('goldHoldInfo');if(!el)return;
+  const i=idx!=null?idx:parseInt(document.getElementById('t_goldIdx')?.value||'-1');
+  if(i<0||!D.goldHoldings[i]){el.innerHTML='';return;}
+  const g=D.goldHoldings[i];
+  el.innerHTML=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:9px 13px;font-size:12px;color:var(--text-muted)">보유: <strong style="color:var(--text);font-family:var(--mono)">${fmt(g.grams,3)}g</strong> &nbsp;·&nbsp; 평균매입가: <strong style="color:var(--text);font-family:var(--mono)">${fmt(g.avgPrice)}원/g</strong> &nbsp;·&nbsp; 현재시세: <strong style="color:var(--gold);font-family:var(--mono)">${g.currentPrice?fmt(g.currentPrice)+'원/g':'미조회'}</strong></div>`;
+}
 
 function onCurChange(cur){
   const lbl=document.getElementById('rateLabel');
@@ -1303,44 +1446,85 @@ function pickTradeStock(val){
   if(rEl&&s.avgPurchaseRate)rEl.value=s.avgPurchaseRate;
 }
 function submitTrade(){
-  const name=gv('t_name'),sym=gv('t_sym').toUpperCase(),cur=gv('t_cur'),date=gv('t_date');
-  const qty=gn('t_qty'),price=gn('t_price');
-  if(!name||!qty||!price||!date)return toast('필수 항목을 모두 입력하세요','err');
-  const isForex=cur!=='KRW';
-  // 환율: KRW면 1, 해외면 입력값 사용 (없으면 현재 환율 자동)
-  const purchaseRate=isForex?(gn('t_purchaseRate')||D.rates[cur]||1):1;
+  const date=gv('t_date'),name=gv('t_name'),note=gv('t_note');
+  if(!date||!name)return toast('날짜와 이름을 입력하세요','err');
 
-  let si=D.stocks.findIndex(s=>(sym&&s.symbol===sym)||s.name===name);
+  // ── 주식/ETF
+  if(_tAsset==='stock'){
+    const sym=gv('t_sym').toUpperCase(),cur=gv('t_cur');
+    const qty=gn('t_qty'),price=gn('t_price');
+    if(!qty||!price)return toast('수량과 단가를 입력하세요','err');
+    const isForex=cur!=='KRW';
+    const purchaseRate=isForex?(gn('t_purchaseRate')||D.rates[cur]||1):1;
+    let si=D.stocks.findIndex(s=>(sym&&s.symbol===sym)||s.name===name);
+    if(_tType==='buy'){
+      if(si<0){D.stocks.push({name,symbol:sym,currency:cur,shares:0,avgPrice:0,avgPurchaseRate:0,currentPrice:null});si=D.stocks.length-1;}
+      const s=D.stocks[si];
+      const ns=s.shares+qty;
+      s.avgPrice=ns>0?(s.avgPrice*s.shares+price*qty)/ns:price;
+      if(isForex){s.avgPurchaseRate=ns>0?((s.avgPurchaseRate||purchaseRate)*s.shares+purchaseRate*qty)/ns:purchaseRate;}
+      else s.avgPurchaseRate=0;
+      s.shares=ns;if(sym)s.symbol=sym;s.currency=cur;
+      D.transactions.push({id:uid(),date,type:'buy',assetType:'stock',name,symbol:sym,currency:cur,shares:qty,price,purchaseRate:isForex?purchaseRate:null,note});
+    }else{
+      if(si<0)return toast('보유하지 않은 종목입니다','err');
+      const s=D.stocks[si];
+      if(qty>s.shares+0.0001)return toast(`보유 수량(${fmt(s.shares,4)})을 초과합니다`,'err');
+      const sellRate=isForex?(purchaseRate||(D.rates[cur]||1)):1;
+      const pricePL=Math.round((price-s.avgPrice)*qty*sellRate);
+      const fxPL=isForex?Math.round((sellRate-(s.avgPurchaseRate||sellRate))*s.avgPrice*qty):0;
+      s.shares-=qty;if(s.shares<0.0001)D.stocks.splice(si,1);
+      D.transactions.push({id:uid(),date,type:'sell',assetType:'stock',name,symbol:sym,currency:cur,shares:qty,price,purchaseRate:isForex?sellRate:null,realizedPL:pricePL+fxPL,pricePL,fxPL,note});
+    }
 
-  if(_tType==='buy'){
-    if(si<0){D.stocks.push({name,symbol:sym,currency:cur,shares:0,avgPrice:0,avgPurchaseRate:0,currentPrice:null});si=D.stocks.length-1;}
-    const s=D.stocks[si];
-    const prevShares=s.shares,prevCost=prevShares*s.avgPrice;
-    const newCost=qty*price;const newShares=prevShares+qty;
-    s.avgPrice=newShares>0?(prevCost+newCost)/newShares:price;
-    // 가중평균 매입환율
-    if(isForex){
-      const prevRateCost=prevShares*(s.avgPurchaseRate||purchaseRate);
-      const newRateCost=qty*purchaseRate;
-      s.avgPurchaseRate=newShares>0?(prevRateCost+newRateCost)/newShares:purchaseRate;
-    }else s.avgPurchaseRate=0;
-    s.shares=newShares;if(sym)s.symbol=sym;s.currency=cur;
-    D.transactions.push({id:uid(),date,type:'buy',name,symbol:sym,currency:cur,shares:qty,price,purchaseRate:isForex?purchaseRate:null,note:gv('t_note')});
+  // ── 펀드
+  }else if(_tAsset==='fund'){
+    const nav=gn('t_nav'),units=gn('t_units');
+    if(!nav||!units)return toast('기준가와 좌수를 입력하세요','err');
+    const fi=parseInt(document.getElementById('t_fundIdx')?.value??'-1');
+    if(_tType==='buy'){
+      // 기존 펀드 업데이트 또는 신규
+      if(fi>=0&&D.funds[fi]){
+        const f=D.funds[fi];
+        const oldUnits=f.units,newUnits=oldUnits+units;
+        f.purchaseNav=newUnits>0?(f.purchaseNav*oldUnits+nav*units)/newUnits:nav;
+        f.units=newUnits;
+      }
+      D.transactions.push({id:uid(),date,type:'buy',assetType:'fund',name,nav,units,note});
+    }else{
+      if(fi<0)return toast('매도할 펀드를 선택하세요','err');
+      const f=D.funds[fi];
+      if(units>f.units+0.1)return toast(`보유 좌수(${fmt(f.units)})를 초과합니다`,'err');
+      const cost=(f.purchaseNav/1000)*units;
+      const val=(nav/1000)*units;
+      const realizedPL=Math.round(val-cost);
+      f.units-=units;
+      D.transactions.push({id:uid(),date,type:'sell',assetType:'fund',name,nav,units,realizedPL,note});
+    }
 
-  }else{
-    if(si<0)return toast('보유하지 않은 종목입니다','err');
-    const s=D.stocks[si];
-    if(qty>s.shares+0.0001)return toast(`보유 수량(${fmt(s.shares,4)})을 초과합니다`,'err');
-    // 매도 환율 (입력값 또는 현재 환율)
-    const sellRate=isForex?(purchaseRate||(D.rates[cur]||1)):1;
-    // 주가손익 = (매도가-평균단가)×수량×매도환율
-    const pricePL=Math.round((price-s.avgPrice)*qty*sellRate);
-    // 환율손익 = (매도환율-평균매입환율)×평균단가×수량
-    const fxPL=isForex?Math.round((sellRate-(s.avgPurchaseRate||sellRate))*s.avgPrice*qty):0;
-    const realizedPL=pricePL+fxPL;
-    s.shares-=qty;if(s.shares<0.0001)D.stocks.splice(si,1);
-    D.transactions.push({id:uid(),date,type:'sell',name,symbol:sym,currency:cur,shares:qty,price,purchaseRate:isForex?sellRate:null,realizedPL,pricePL,fxPL,note:gv('t_note')});
+  // ── 금 현물
+  }else if(_tAsset==='gold'){
+    const price=gn('t_price'),grams=gn('t_grams');
+    if(!price||!grams)return toast('단가와 수량을 입력하세요','err');
+    const gi=parseInt(document.getElementById('t_goldIdx')?.value??'-1');
+    if(_tType==='buy'){
+      if(gi>=0&&D.goldHoldings[gi]){
+        const g=D.goldHoldings[gi];
+        const ng=g.grams+grams;
+        g.avgPrice=ng>0?(g.avgPrice*g.grams+price*grams)/ng:price;
+        g.grams=ng;
+      }
+      D.transactions.push({id:uid(),date,type:'buy',assetType:'gold',name,price,grams,note});
+    }else{
+      if(gi<0)return toast('매도할 금 자산을 선택하세요','err');
+      const g=D.goldHoldings[gi];
+      if(grams>g.grams+0.001)return toast(`보유량(${fmt(g.grams,3)}g)을 초과합니다`,'err');
+      const realizedPL=Math.round((price-g.avgPrice)*grams);
+      g.grams-=grams;if(g.grams<0.001)D.goldHoldings.splice(gi,1);
+      D.transactions.push({id:uid(),date,type:'sell',assetType:'gold',name,price,grams,realizedPL,note});
+    }
   }
+
   save();closeTrade();renderAll();toast(`${_tType==='buy'?'매수':'매도'} 등록 완료`);
 }
 
