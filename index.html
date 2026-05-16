@@ -172,6 +172,22 @@ tr:last-child td{border-bottom:none}tr:hover td{background:rgba(255,255,255,.015
     <div class="card"><div class="tw" id="stockTable"></div></div>
   </div>
   <div class="card" id="invSummary" style="display:none;margin-top:0"></div>
+
+  <!-- 금 현물 섹션 -->
+  <div class="section" style="margin-top:22px">
+    <div class="sec-hd">
+      <div class="sec-title" style="display:flex;align-items:center;gap:10px">
+        🪙 KRX 금 현물
+        <span id="goldSpotBadge" style="font-family:var(--mono);font-size:12px;color:var(--text-muted)"></span>
+      </div>
+      <div style="display:flex;gap:7px;align-items:center">
+        <button class="btn btn-outline btn-sm" onclick="refreshGoldOnly()" id="goldRefreshBtn">↻ 시세 조회</button>
+        <button class="btn btn-primary btn-sm" onclick="openModal('gold')">+ 금 추가</button>
+      </div>
+    </div>
+    <div class="card" id="goldTable"></div>
+  </div>
+  <div class="card" id="goldSummary" style="display:none;margin-top:0"></div>
 </div>
 
 <!-- ── 거래내역 ── -->
@@ -311,8 +327,9 @@ tr:last-child td{border-bottom:none}tr:hover td{background:rgba(255,255,255,.015
 //  DATA
 // ════════════════════════════════
 const KEY='assetMgr_v4';
-function fresh(){return{stocks:[],transactions:[],funds:[],installments:[],deposits:[],loans:[],records:[],rates:{USD:1370,EUR:1490,JPY:9.1,CNY:190},rateTs:null,gasUrl:''}}
+function fresh(){return{stocks:[],transactions:[],funds:[],installments:[],deposits:[],loans:[],goldHoldings:[],records:[],rates:{USD:1370,EUR:1490,JPY:9.1,CNY:190},rateTs:null,gasUrl:''}}
 let D=(()=>{try{const s=localStorage.getItem(KEY);return s?Object.assign(fresh(),JSON.parse(s)):fresh();}catch(e){return fresh();}})();
+if(!D.goldHoldings) D.goldHoldings = [];
 // migrate old installments
 D.installments.forEach(it=>{
   if(!it.paymentSchedule) it.paymentSchedule=[{from:(it.startDate||'2000-01').slice(0,7),amount:it.monthlyAmount||0}];
@@ -403,13 +420,15 @@ function calcLoan(it){
 }
 
 function totals(){
-  let stocks=0,funds=0,inst=0,dep=0,loans=0;
+  let stocks=0,funds=0,gold=0,inst=0,dep=0,loans=0;
   D.stocks.forEach(s=>{stocks+=krw((s.currentPrice||s.avgPrice)*s.shares,s.currency)});
   D.funds.forEach(f=>{funds+=(f.units/1000)*(f.currentNav||f.purchaseNav)});
+  D.goldHoldings.forEach(g=>{gold+=g.grams*(g.currentPrice||g.avgPrice)});
   D.installments.forEach(it=>{inst+=calcInst(it).total});
   D.deposits.forEach(it=>{dep+=krw(it.amount+calcDep(it).interest,it.currency||'KRW')});
   D.loans.forEach(it=>{loans+=calcLoan(it).balance});
-  return{stocks,funds,inst,dep,loans,total:stocks+funds+inst+dep,net:stocks+funds+inst+dep-loans};
+  const invest=stocks+funds+gold;
+  return{stocks,funds,gold,inst,dep,loans,invest,total:invest+inst+dep,net:invest+inst+dep-loans};
 }
 function monthlyOut(){
   const now=new Date();let m=0;
@@ -541,6 +560,50 @@ async function fetchFundNav(code){
 
 function deepFind(o,ks,d=0){if(d>8||!o||typeof o!=='object')return null;for(const k of ks)if(o[k]!=null)return o[k];for(const v of Object.values(o)){const r=deepFind(v,ks,d+1);if(r)return r;}return null;}
 
+// 금 현물 시세 조회 (KRX 금 현물, 원/g)
+async function fetchGoldPrice(){
+  const td=new Date().toISOString().slice(0,10);
+
+  // 1순위: Naver Finance 모바일 API (KRX 금 현물 코드 4GLD)
+  try{
+    const txt=await proxyFetch('https://m.stock.naver.com/api/index/4GLD/basic',6000);
+    const j=JSON.parse(txt);
+    const raw=j.closePrice||j.price||j.currentPrice;
+    if(raw){const p=parseFloat(String(raw).replace(/,/g,''));if(p>10000)return{price:p,source:'KRX',date:td};}
+  }catch(e){}
+
+  // 2순위: Naver Finance 종목 페이지 파싱
+  try{
+    const txt=await proxyFetch('https://finance.naver.com/item/main.naver?code=4GLD',7000);
+    for(const re of[/"closePrice"\s*:\s*"?([\d,]+)"/,/현재가[^\d]*([\d,]{5,8})/,/"nowVal"\s*:\s*"?([\d,]+)"/]){
+      const m=txt.match(re);if(m){const p=parseFloat(m[1].replace(/,/g,''));if(p>10000)return{price:p,source:'KRX',date:td};}
+    }
+    const doc=new DOMParser().parseFromString(txt,'text/html');
+    for(const sel of['#_nowVal','.no_today .blind','.rate_info .blind','em.no_up','em.no_down']){
+      const el=doc.querySelector(sel);if(el){const p=parseFloat(el.textContent.replace(/[^0-9.]/g,''));if(p>10000)return{price:p,source:'KRX',date:td};}
+    }
+  }catch(e){}
+
+  // 3순위: Yahoo Finance GC=F (COMEX 금선물, USD/troy oz) → KRW/g 변환
+  // 1 troy oz = 31.1035 g
+  try{
+    const r=await fetchPrice('GC=F');
+    if(r&&r.price&&D.rates.USD){
+      const p=Math.round(r.price*D.rates.USD/31.1035);
+      if(p>10000)return{price:p,source:'COMEX(환산)',date:td};
+    }
+  }catch(e){}
+
+  // 4순위: KS01(한국조폐공사 금시세 API)
+  try{
+    const txt=await proxyFetch('https://m.stock.naver.com/api/index/KS01/basic',5000);
+    const j=JSON.parse(txt);const raw=j.closePrice||j.price;
+    if(raw){const p=parseFloat(String(raw).replace(/,/g,''));if(p>10000)return{price:p,source:'KRX',date:td};}
+  }catch(e){}
+
+  return null;
+}
+
 async function refreshAll(){
   const btn=document.getElementById('refreshBtn'),ic=document.getElementById('refreshIcon');
   btn.disabled=true;ic.innerHTML='<span class="spin">↻</span>';
@@ -548,23 +611,28 @@ async function refreshAll(){
   const ok=await fetchRates();
   let priceOk=0,priceFail=0;
   for(const s of D.stocks){
-    if(s.symbol){
-      const r=await fetchPrice(s.symbol);
-      if(r){s.currentPrice=r.price;priceOk++;}else priceFail++;
-    }
+    if(s.symbol){const r=await fetchPrice(s.symbol);if(r){s.currentPrice=r.price;priceOk++;}else priceFail++;}
+  }
+  // 금 현물 시세
+  const gp=await fetchGoldPrice();
+  if(gp){
+    D.goldHoldings.forEach(g=>{g.currentPrice=gp.price;g.priceSource=gp.source;g.priceDate=gp.date;});
+    if(!D.goldHoldings.length) D._goldSpot={price:gp.price,source:gp.source,date:gp.date};
+    else delete D._goldSpot;
   }
   for(const f of D.funds){if(f.fundCode){const r=await fetchFundNav(f.fundCode);if(r){f.currentNav=r.nav;f.navDate=r.date;f.navStatus='ok';}else f.navStatus='fail';}}
   save();btn.disabled=false;ic.textContent='↻';
   const now=new Date();document.getElementById('lastUpdate').textContent=`갱신 ${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
   const msg=[];if(ok)msg.push('환율 ✓');else msg.push('환율 실패');
   if(D.stocks.length)msg.push(`주가 ${priceOk}/${D.stocks.length} ✓`);
+  if(gp)msg.push(`금 ${fmt(gp.price)}원/g`);
   toast(msg.join(' · '));renderAll();
 }
 
 // ════════════════════════════════
 //  RENDER
 // ════════════════════════════════
-function renderAll(){renderDash();renderInv();renderTrade();renderFund();renderSavings();renderLoans();renderRec();}
+function renderAll(){renderDash();renderInv();renderGold();renderTrade();renderFund();renderSavings();renderLoans();renderRec();}
 
 let lineInst=null,pieInst=null;
 function renderDash(){
@@ -589,7 +657,7 @@ function renderDash(){
 
   // Pie chart
   const pCtx=document.getElementById('pieChart');if(pieInst)pieInst.destroy();
-  const pD=[T.stocks,T.funds,T.dep,T.inst],pC=['#4a9eff','#a78bfa','#c9a84c','#2dd9a0'],pL=['투자','펀드','예금','적금'];
+  const pD=[T.stocks,T.gold,T.funds,T.dep,T.inst],pC=['#4a9eff','#f6c90e','#a78bfa','#c9a84c','#2dd9a0'],pL=['주식/ETF','금현물','펀드','예금','적금'];
   pieInst=new Chart(pCtx,{type:'doughnut',data:{labels:pL,datasets:[{data:pD,backgroundColor:pC,borderWidth:0,hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:false,cutout:'68%',plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${fmtW(ctx.raw)}원`}}}}});
   const tot=pD.reduce((a,b)=>a+b,0);
   document.getElementById('pieLabels').innerHTML=pL.map((l,i)=>`<div style="display:flex;justify-content:space-between;padding:3px 0"><span style="color:${pC[i]};font-size:12px">● ${l}</span><span style="font-family:var(--mono);font-size:12px">${tot>0?fmt(pD[i]/tot*100,1):0}%</span></div>`).join('');
@@ -675,6 +743,76 @@ function renderInv(){
       <div><div class="card-title">총 평가금액</div><div class="card-value gold">${fmtW(totalVal)}</div></div>
       <div><div class="card-title">총 손익</div><div class="card-value ${totPL>=0?'green':'red'}">${totPL>=0?'+':''}${fmtW(Math.round(totPL))} (${pctHtml(totPct)})</div></div>
     </div>`;
+}
+
+// ── renderGold ──
+function renderGold(){
+  const el=document.getElementById('goldTable');
+  const sum=document.getElementById('goldSummary');
+  const badge=document.getElementById('goldSpotBadge');
+  const spot=D.goldHoldings.find(g=>g.currentPrice)||D._goldSpot;
+  if(spot&&badge){
+    const src=(spot.priceSource||spot.source||'');
+    badge.innerHTML=`현재 <span style="color:var(--gold);font-weight:700">${fmt(spot.currentPrice||spot.price)}원/g</span> <span style="font-size:10px;color:var(--text-muted)">${src} ${spot.priceDate||''}</span>`;
+  } else if(badge) badge.textContent='(시세 미조회)';
+
+  if(!D.goldHoldings.length){
+    el.innerHTML=`<div class="empty" style="padding:32px"><div class="empty-icon">🪙</div><div style="font-size:13px">금 현물 보유량을 추가하세요<br><span style="font-size:11px;color:var(--text-muted)">KRX 금 현물 · 한국금거래소 · 골드바 등</span></div></div>`;
+    sum.style.display='none';return;
+  }
+  let tc=0,tv=0;
+  const rows=D.goldHoldings.map((g,i)=>{
+    const cp=g.currentPrice||g.avgPrice;
+    const cost=g.grams*g.avgPrice,val=g.grams*cp,pl=val-cost;
+    const pct=cost>0?pl/cost*100:0;tc+=cost;tv+=val;
+    const srcBadge=g.priceSource?`<span class="badge bg-muted" style="font-size:10px;margin-left:4px">${g.priceSource}</span>`:'';
+    return`<tr>
+      <td style="font-weight:500">${g.name}</td>
+      <td class="num">${fmt(g.grams,3)} g</td>
+      <td class="num">${fmt(g.avgPrice)} 원/g</td>
+      <td class="num">${g.currentPrice?fmt(g.currentPrice)+' 원/g':'<span class="muted">미조회</span>'}${srcBadge}</td>
+      <td>${pctHtml(pct)}</td>
+      <td class="num ${pl>=0?'green':'red'}">${pl>=0?'+':''}${fmtF(Math.round(pl))}</td>
+      <td class="num gold">${fmtF(Math.round(val))}</td>
+      <td style="white-space:nowrap">
+        <button class="ibt gold" onclick="manualGoldPrice(${i})" style="margin-right:3px">시세입력</button>
+        <button class="ibt edit" onclick="openModal('gold',${i})" style="margin-right:3px">수정</button>
+        <button class="ibt del" onclick="del('goldHoldings',${i})">삭제</button>
+      </td>
+    </tr>`;
+  });
+  el.innerHTML=`<div class="tw"><table>
+    <thead><tr><th>이름</th><th>보유량</th><th>평균매입가</th><th>현재시세</th><th>수익률</th><th>손익</th><th>평가금액</th><th></th></tr></thead>
+    <tbody>${rows.join('')}</tbody>
+  </table></div>`;
+  sum.style.display='block';const pct=tc>0?(tv-tc)/tc*100:0;
+  sum.innerHTML=`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;text-align:center;padding:2px 0">
+    <div><div class="card-title">총 보유량</div><div class="card-value" style="font-size:20px">${fmt(D.goldHoldings.reduce((a,g)=>a+g.grams,0),3)} g</div></div>
+    <div><div class="card-title">총 매입원가</div><div class="card-value" style="font-size:20px">${fmtW(tc)}</div></div>
+    <div><div class="card-title">총 평가금액</div><div class="card-value gold" style="font-size:20px">${fmtW(tv)}</div></div>
+    <div><div class="card-title">총 손익</div><div class="card-value ${tv-tc>=0?'green':'red'}" style="font-size:20px">${tv-tc>=0?'+':''}${fmtW(Math.round(tv-tc))} (${pctHtml(pct)})</div></div>
+  </div>`;
+}
+
+async function refreshGoldOnly(){
+  const btn=document.getElementById('goldRefreshBtn');btn.disabled=true;btn.innerHTML='<span class="spin">↻</span> 조회중...';
+  const r=await fetchGoldPrice();
+  if(r){
+    D.goldHoldings.forEach(g=>{g.currentPrice=r.price;g.priceSource=r.source;g.priceDate=r.date;});
+    D._goldSpot={price:r.price,source:r.source,date:r.date};
+    save();renderGold();toast(`금 현물 ${fmt(r.price)}원/g (${r.source})`);
+  } else toast('시세 조회 실패 — 직접 입력하거나 잠시 후 재시도하세요','err');
+  btn.disabled=false;btn.innerHTML='↻ 시세 조회';
+}
+
+function manualGoldPrice(idx){
+  const g=D.goldHoldings[idx];
+  const v=prompt(`${g.name}\n현재 금 시세 입력 (원/g):`,g.currentPrice||g.avgPrice);
+  if(v===null)return;const n=parseFloat(v.replace(/,/g,''));
+  if(isNaN(n)||n<1000)return toast('올바른 시세를 입력하세요 (원/g)','err');
+  g.currentPrice=n;g.priceSource='직접입력';g.priceDate=new Date().toISOString().slice(0,10);
+  D._goldSpot={price:n,source:'직접입력',date:g.priceDate};
+  save();renderGold();toast('금 시세 업데이트');
 }
 
 function renderTrade(){
@@ -881,9 +1019,9 @@ function applyTradeSym(sym,name,cur,resultsId){
 let _mType='',_mIdx=-1;
 function openModal(type,idx=-1){
   _mType=type;_mIdx=idx;const isEdit=idx>=0;
-  const keyMap={stock:'stocks',fund:'funds',installment:'installments',deposit:'deposits',loan:'loans'};
+  const keyMap={stock:'stocks',fund:'funds',installment:'installments',deposit:'deposits',loan:'loans',gold:'goldHoldings'};
   const item=isEdit?D[keyMap[type]]?.[idx]:null;
-  document.getElementById('modalTitle').textContent={stock:isEdit?'종목 수정':'종목 추가',fund:isEdit?'펀드 수정':'펀드 추가',installment:isEdit?'적금 수정':'적금 추가',deposit:isEdit?'예금 수정':'예금 추가',loan:isEdit?'대출 수정':'대출 추가'}[type];
+  document.getElementById('modalTitle').textContent={stock:isEdit?'종목 수정':'종목 추가',fund:isEdit?'펀드 수정':'펀드 추가',installment:isEdit?'적금 수정':'적금 추가',deposit:isEdit?'예금 수정':'예금 추가',loan:isEdit?'대출 수정':'대출 추가',gold:isEdit?'금 현물 수정':'금 현물 추가'}[type]||type;
   document.getElementById('mainModal').style.width=type==='stock'?'540px':'490px';
   document.getElementById('modalBody').innerHTML=buildForm(type,item)+'<div class="modal-footer"><button class="btn btn-outline btn-sm" onclick="closeModal()">취소</button><button class="btn btn-primary btn-sm" onclick="submitModal()">저장</button></div>';
   document.querySelectorAll('#modalBody .fi[type=date]').forEach(el=>{if(!el.value)el.value=new Date().toISOString().slice(0,10);});
@@ -979,6 +1117,21 @@ function buildForm(type,it){
       <div class="fg"><label class="fl">시작일 *</label><input class="fi" id="f_start" type="date" value="${v('startDate')}"></div>
       <div class="fg"><label class="fl">상환 방식</label><select class="fs" id="f_repay"><option value="equal" ${v('repayType','equal')==='equal'?'selected':''}>원리금균등</option><option value="principal" ${v('repayType')==='principal'?'selected':''}>원금균등</option></select></div>
     </div>`;
+
+  if(type==='gold')return`
+    <div class="fg"><label class="fl">이름 *</label><input class="fi" id="f_name" value="${v('name','KRX 금 현물')}" placeholder="KRX 금 현물"></div>
+    <div class="fr">
+      <div class="fg"><label class="fl">보유량 (g) *</label><input class="fi" id="f_grams" type="number" step="any" value="${v('grams')}" placeholder="예: 10.5"></div>
+      <div class="fg"><label class="fl">평균 매입가 (원/g) *</label><input class="fi" id="f_avgprice" type="number" step="any" value="${v('avgPrice')}" placeholder="예: 95000"></div>
+    </div>
+    <div class="fg">
+      <div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--gold);border-radius:5px;padding:11px 14px;font-size:12px;color:var(--text-muted);line-height:1.8">
+        💡 <strong style="color:var(--text)">평균 매입가 확인 방법</strong><br>
+        KRX 금 현물: 한국거래소(krx.co.kr) 거래 확인서<br>
+        한국금거래소: 매입 영수증의 g당 단가<br>
+        현재 KRX 금 시세: 「↻ 시세 조회」 버튼으로 자동조회
+      </div>
+    </div>`;
   return '';
 }
 
@@ -1012,6 +1165,12 @@ function submitModal(){
     const a=gn('f_amt'),r=gn('f_rate'),t=gn('f_term'),s=gv('f_start');if(!a||!r||!t||!s)return toast('모든 항목을 입력하세요','err');
     const obj={name,amount:a,interestRate:r,termMonths:t,startDate:s,repayType:gv('f_repay')};
     if(isEdit)D.loans[idx]=obj;else D.loans.push(obj);
+  }else if(type==='gold'){
+    const grams=gn('f_grams'),avgPrice=gn('f_avgprice');
+    if(!grams||!avgPrice)return toast('보유량과 매입가를 입력하세요','err');
+    const existing=isEdit?D.goldHoldings[idx]:null;
+    const obj={name,grams,avgPrice,currentPrice:existing?.currentPrice||null,priceSource:existing?.priceSource||null,priceDate:existing?.priceDate||null};
+    if(isEdit)D.goldHoldings[idx]=obj;else D.goldHoldings.push(obj);
   }
   save();closeModal();renderAll();toast(`"${name}" ${isEdit?'수정':'추가'} 완료`);
 }
