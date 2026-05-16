@@ -122,6 +122,23 @@ tr:last-child td{border-bottom:none}tr:hover td{background:rgba(255,255,255,.015
   <div class="header-title">자산관리 포트폴리오</div>
   <div class="header-right">
     <span class="last-update" id="lastUpdate">—</span>
+    <!-- 자동갱신 컨트롤 -->
+    <div id="autoRefreshWrap" style="display:flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:4px 10px">
+      <span style="font-size:11px;color:var(--text-muted);white-space:nowrap">자동갱신</span>
+      <select id="autoRefreshSel" onchange="setAutoRefresh(this.value)" style="background:transparent;border:none;color:var(--text);font-size:12px;font-family:var(--mono);outline:none;cursor:pointer;padding:0">
+        <option value="0">OFF</option>
+        <option value="5">5초</option>
+        <option value="10">10초</option>
+        <option value="15">15초</option>
+        <option value="30">30초</option>
+        <option value="60">1분</option>
+        <option value="120">2분</option>
+        <option value="300">5분</option>
+        <option value="600">10분</option>
+      </select>
+      <span id="autoRefreshCountdown" style="font-size:11px;font-family:var(--mono);color:var(--gold);min-width:28px;text-align:right;display:none"></span>
+      <span id="autoRefreshWarn" style="display:none;font-size:10px;color:var(--red);white-space:nowrap" title="5~15초 간격은 외부 API에 과도한 요청을 보낼 수 있어 IP 차단이나 rate limit이 걸릴 수 있습니다. 주가 시세는 15분 지연 데이터이므로 30초~1분 권장">⚠ 과부하 주의</span>
+    </div>
     <button class="hbtn blue" onclick="openGasModal()">🔗 구글 시트</button>
     <button class="hbtn gold" id="refreshBtn" onclick="refreshAll()"><span id="refreshIcon">↻</span> 시세 갱신</button>
   </div>
@@ -622,29 +639,89 @@ async function fetchGoldPrice(){
   return null;
 }
 
-async function refreshAll(){
-  const btn=document.getElementById('refreshBtn'),ic=document.getElementById('refreshIcon');
-  btn.disabled=true;ic.innerHTML='<span class="spin">↻</span>';
-  toast('시세 갱신 중...');
+// 자동갱신 전용: 환율·주가·금만 (펀드 제외)
+async function refreshPricesOnly(silent=false){
+  if(!silent)toast('시세 갱신 중...');
   const ok=await fetchRates();
   let priceOk=0,priceFail=0;
   for(const s of D.stocks){
     if(s.symbol){const r=await fetchPrice(s.symbol);if(r){s.currentPrice=r.price;priceOk++;}else priceFail++;}
   }
-  // 금 현물 시세
   const gp=await fetchGoldPrice();
   if(gp){
     D.goldHoldings.forEach(g=>{g.currentPrice=gp.price;g.priceSource=gp.source;g.priceDate=gp.date;});
-    if(!D.goldHoldings.length) D._goldSpot={price:gp.price,source:gp.source,date:gp.date};
+    if(!D.goldHoldings.length)D._goldSpot={price:gp.price,source:gp.source,date:gp.date};
     else delete D._goldSpot;
   }
-  for(const f of D.funds){if(f.fundCode){const r=await fetchFundNav(f.fundCode);if(r){f.currentNav=r.nav;f.navDate=r.date;f.navStatus='ok';}else f.navStatus='fail';}}
-  save();btn.disabled=false;ic.textContent='↻';
-  const now=new Date();document.getElementById('lastUpdate').textContent=`갱신 ${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
+  save();
+  const now=new Date();
+  document.getElementById('lastUpdate').textContent=`갱신 ${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
   const msg=[];if(ok)msg.push('환율 ✓');else msg.push('환율 실패');
   if(D.stocks.length)msg.push(`주가 ${priceOk}/${D.stocks.length} ✓`);
   if(gp)msg.push(`금 ${fmt(gp.price)}원/g`);
-  toast(msg.join(' · '));renderAll();
+  toast(msg.join(' · '));
+  renderAll();
+  return{ok,priceOk,priceFail,gp};
+}
+
+async function refreshAll(){
+  const btn=document.getElementById('refreshBtn'),ic=document.getElementById('refreshIcon');
+  btn.disabled=true;ic.innerHTML='<span class="spin">↻</span>';
+  await refreshPricesOnly(true);
+  // 수동 갱신 시에만 펀드도 포함
+  for(const f of D.funds){if(f.fundCode){const r=await fetchFundNav(f.fundCode);if(r){f.currentNav=r.nav;f.navDate=r.date;f.navStatus='ok';f.priceSource=r.source;}else f.navStatus='fail';}}
+  save();
+  btn.disabled=false;ic.textContent='↻';
+  renderAll();
+}
+
+// ════════════════════════════════
+//  자동갱신 엔진
+// ════════════════════════════════
+let _arTimer=null,_arInterval=0,_arRemain=0,_arTick=null;
+
+function setAutoRefresh(val){
+  const sec=parseInt(val)||0;
+  _arInterval=sec;
+  D._autoRefreshSec=sec;
+  save();
+  clearAutoRefreshTimer();
+  const cd=document.getElementById('autoRefreshCountdown');
+  const warn=document.getElementById('autoRefreshWarn');
+  if(sec>0){
+    startAutoRefreshCycle();
+    if(cd)cd.style.display='';
+    if(warn)warn.style.display=sec<=15?'':'none';
+  }else{
+    if(cd){cd.style.display='none';cd.textContent='';}
+    if(warn)warn.style.display='none';
+  }
+}
+
+function startAutoRefreshCycle(){
+  clearAutoRefreshTimer();
+  if(!_arInterval)return;
+  _arRemain=_arInterval;
+  updateCountdown();
+  _arTick=setInterval(()=>{
+    _arRemain--;
+    updateCountdown();
+    if(_arRemain<=0){
+      _arRemain=_arInterval;
+      refreshPricesOnly(true);
+    }
+  },1000);
+}
+
+function clearAutoRefreshTimer(){
+  if(_arTick){clearInterval(_arTick);_arTick=null;}
+}
+
+function updateCountdown(){
+  const cd=document.getElementById('autoRefreshCountdown');
+  if(!cd)return;
+  if(_arRemain>60) cd.textContent=`${Math.floor(_arRemain/60)}m${_arRemain%60}s`;
+  else cd.textContent=`${_arRemain}s`;
 }
 
 // ════════════════════════════════
@@ -1613,6 +1690,18 @@ function toast(msg,type=''){
   renderAll();updateGasUI();
   if(D.rateTs){const d=new Date(D.rateTs);document.getElementById('lastUpdate').textContent=`갱신 ${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;}
   if(!D.rateTs||(Date.now()-new Date(D.rateTs))>3*3600*1000){const ok=await fetchRates();if(ok){renderAll();toast('환율 자동 업데이트');}}
+  // 저장된 자동갱신 설정 복원
+  const savedSec=D._autoRefreshSec||0;
+  if(savedSec>0){
+    _arInterval=savedSec;
+    const sel=document.getElementById('autoRefreshSel');
+    if(sel)sel.value=String(savedSec);
+    const cd=document.getElementById('autoRefreshCountdown');
+    if(cd)cd.style.display='';
+    const warn=document.getElementById('autoRefreshWarn');
+    if(warn)warn.style.display=savedSec<=15?'':'none';
+    startAutoRefreshCycle();
+  }
 })();
 </script>
 </body>
