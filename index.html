@@ -216,21 +216,9 @@ tr:last-child td{border-bottom:none}tr:hover td{background:rgba(255,255,255,.015
       </div>
     </div>
 
-    <!-- API키 설정 카드 -->
-    <div class="card" id="fundApiCard" style="margin-bottom:12px">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px">
-        <div>
-          <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px">
-            📡 공공데이터포털 API 키 <span id="fundApiStatus"></span>
-          </div>
-          <div style="font-size:12px;color:var(--text-muted);line-height:1.7">
-            금융위원회 공식 펀드 기준가 데이터 · 하루 10만 건 무료 · <a href="https://www.data.go.kr/data/15094792/openapi.do" target="_blank" style="color:var(--blue);text-decoration:none">발급 페이지↗</a>
-          </div>
-        </div>
-        <button class="btn btn-primary btn-sm" onclick="openFundApiModal()">🔑 API 키 설정</button>
-      </div>
-      <div id="fundApiKeyPreview" style="margin-top:10px;display:none">
-        <div style="font-family:var(--mono);font-size:11px;color:var(--text-muted);background:var(--surface2);padding:6px 10px;border-radius:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="fundApiKeyMasked"></div>
+    <div class="card" style="margin-bottom:12px;border-left:3px solid var(--blue);padding:12px 15px">
+      <div style="font-size:12px;color:var(--text-muted);line-height:1.9">
+        💡 <strong style="color:var(--text)">펀드 코드:</strong> <a href="https://www.fundguide.net" target="_blank" style="color:var(--blue);text-decoration:none">펀드가이드(fundguide.net)</a> 에서 펀드 검색 → 상세 URL의 <code style="background:var(--surface2);padding:1px 5px;border-radius:3px;font-family:var(--mono);font-size:11px;color:var(--gold)">FundCd=KR...</code> 값 사용
       </div>
     </div>
     <div id="fundTable"></div>
@@ -334,47 +322,6 @@ tr:last-child td{border-bottom:none}tr:hover td{background:rgba(255,255,255,.015
   </div>
 </div>
 
-<!-- Fund API Key Modal -->
-<div class="modal-overlay" id="fundApiBg" onclick="if(event.target===this)closeFundApiModal()">
-  <div class="modal wide">
-    <div class="modal-title">🔑 공공데이터포털 API 키 설정</div>
-
-    <!-- 발급 안내 -->
-    <div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--gold);border-radius:6px;padding:14px 16px;margin-bottom:18px;font-size:12px;color:var(--text-muted);line-height:2">
-      <strong style="color:var(--text);font-size:13px">📋 API 키 발급 방법 (1회, 무료)</strong><br>
-      1. <a href="https://www.data.go.kr/data/15094792/openapi.do" target="_blank" style="color:var(--blue)">공공데이터포털 → 금융위원회_펀드상품기본정보 ↗</a> 접속<br>
-      2. 로그인 (회원가입 필요) → <strong style="color:var(--text)">「활용신청」</strong> 버튼 클릭<br>
-      3. 신청 완료 후 <strong style="color:var(--text)">마이페이지 → 인증키 발급현황</strong>에서 키 확인<br>
-      4. <strong style="color:var(--gold)">일반 인증키(Decoding)</strong> 복사 → 아래 입력<br>
-      <span style="font-size:11px">※ 승인은 보통 즉시~1시간 내. 하루 10만 건 무료 사용 가능.</span>
-    </div>
-
-    <div class="fg">
-      <label class="fl">API 키 (일반 인증키) *</label>
-      <input class="fi" id="fundApiKeyInput" type="password" placeholder="발급받은 인증키를 입력하세요" style="font-family:var(--mono);font-size:12px;letter-spacing:1px">
-      <div class="hint">마이페이지 → 인증키 발급현황 → <strong>일반 인증키(Decoding)</strong> 값을 사용하세요</div>
-    </div>
-
-    <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">
-      <button class="hbtn gold" onclick="testFundApi()">🔌 연결 테스트</button>
-      <span id="fundApiTestResult" style="font-size:12px;color:var(--text-muted)"></span>
-    </div>
-
-    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px 14px;margin-top:16px;font-size:12px;color:var(--text-muted);line-height:1.8">
-      <strong style="color:var(--text)">사용 데이터: 금융위원회_펀드상품기본정보</strong><br>
-      · API 엔드포인트: <code style="font-family:var(--mono);font-size:10px">GetFundProductInfoService/getFundPriceInfo</code><br>
-      · 펀드 코드: 펀드가이드(fundguide.net) URL의 <code style="font-family:var(--mono);font-size:10px;color:var(--gold)">FundCd=KR...</code> 값<br>
-      · 갱신: 전영업일 기준가 (당일 오후 1시 이후 업데이트)
-    </div>
-
-    <div class="modal-footer">
-      <button class="btn btn-outline btn-sm" onclick="clearFundApiKey()">키 삭제</button>
-      <button class="btn btn-outline btn-sm" onclick="closeFundApiModal()">취소</button>
-      <button class="btn btn-primary btn-sm" onclick="saveFundApiKey()">저장</button>
-    </div>
-  </div>
-</div>
-
 <div class="toast" id="toast"></div>
 <div class="watermark">made by 박선생</div>
 
@@ -383,7 +330,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:rgba(255,255,255,.015
 //  DATA
 // ════════════════════════════════
 const KEY='assetMgr_v4';
-function fresh(){return{stocks:[],transactions:[],funds:[],installments:[],deposits:[],loans:[],goldHoldings:[],records:[],rates:{USD:1370,EUR:1490,JPY:9.1,CNY:190},rateTs:null,gasUrl:'',fundApiKey:''}}
+function fresh(){return{stocks:[],transactions:[],funds:[],installments:[],deposits:[],loans:[],goldHoldings:[],records:[],rates:{USD:1370,EUR:1490,JPY:9.1,CNY:190},rateTs:null,gasUrl:''}}
 let D=(()=>{try{const s=localStorage.getItem(KEY);return s?Object.assign(fresh(),JSON.parse(s)):fresh();}catch(e){return fresh();}})();
 if(!D.goldHoldings) D.goldHoldings = [];
 // migrate old installments
@@ -590,80 +537,35 @@ async function verifySymbol(sym){
   return r?{symbol:sym,...r}:null;
 }
 
-// ── 공공데이터포털 펀드 기준가 API (금융위원회_펀드상품기본정보)
-async function fetchFundNavPublicApi(isinCd){
-  const key=D.fundApiKey;if(!key)return null;
-  const td=new Date().toISOString().slice(0,10);
-  // 최근 5영업일 중 가장 최신 기준가 조회 (날짜 미지정 시 최신 자동)
-  const baseUrl='https://apis.data.go.kr/1160100/service/GetFundProductInfoService/getFundPriceInfo';
-  const params=new URLSearchParams({serviceKey:key,numOfRows:'5',pageNo:'1',resultType:'json',isinCd});
-  const url=`${baseUrl}?${params.toString()}`;
-  // 직접 호출 → 실패 시 CORS 프록시
-  for(const makeUrl of [u=>u, ...CORS_PROXIES.map(p=>u=>p(u))]){
-    try{
-      const r=await timeoutFetch(makeUrl(url),8000);
-      const txt=await r.text();
-      // JSON 파싱
-      try{
-        const j=JSON.parse(txt);
-        // 정상 응답 구조: response.body.items.item[0].basPrc
-        const items=j?.response?.body?.items?.item;
-        const arr=Array.isArray(items)?items:(items?[items]:[]);
-        if(arr.length>0){
-          const latest=arr.sort((a,b)=>String(b.bfBasDt||b.basDt||'').localeCompare(String(a.bfBasDt||a.basDt||'')))[0];
-          const nav=parseFloat(String(latest.basPrc||latest.nav||'').replace(/,/g,''));
-          const date=String(latest.bfBasDt||latest.basDt||td);
-          if(nav>100&&nav<200000)return{nav,source:'공공데이터(공식)',date:date.slice(0,4)+'-'+date.slice(4,6)+'-'+date.slice(6,8)};
-        }
-      }catch(e){}
-      // XML 응답 폴백 파싱
-      const navM=txt.match(/<basPrc>([\d.]+)<\/basPrc>/)||txt.match(/<nav>([\d.]+)<\/nav>/);
-      const dateM=txt.match(/<bfBasDt>(\d{8})<\/bfBasDt>/)||txt.match(/<basDt>(\d{8})<\/basDt>/);
-      if(navM){
-        const nav=parseFloat(navM[1]);const dt=dateM?dateM[1]:td.replace(/-/g,'');
-        if(nav>100&&nav<200000)return{nav,source:'공공데이터(공식)',date:dt.slice(0,4)+'-'+dt.slice(4,6)+'-'+dt.slice(6,8)};
-      }
-      // 오류 코드 감지
-      if(txt.includes('SERVICE_KEY_IS_NOT_REGISTERED')||txt.includes('INVALID_REQUEST_PARAMETER_ERROR'))return {error:'invalid_key'};
-    }catch(e){}
-  }
-  return null;
-}
-
-// ── 펀드 기준가 통합 조회 (공공 API 우선 → 스크래핑 폴백)
+// 펀드 기준가 - 다중 소스 시도
 async function fetchFundNav(code){
   const td=new Date().toISOString().slice(0,10);
+  const c=encodeURIComponent(code);
 
-  // 1순위: 공공데이터포털 공식 API
-  if(D.fundApiKey){
-    const r=await fetchFundNavPublicApi(code);
-    if(r){if(r.error)return null;return r;}
-  }
-
-  // 2순위: 금융투자협회 DIS XML API
+  // 소스 1: 금융투자협회 KOFIA XML
   try{
     const xml=`<?xml version="1.0" encoding="utf-8"?><root><parameter id="standardCd" type="string"><![CDATA[${code}]]></parameter><parameter id="vLang" type="string"><![CDATA[KOR]]></parameter></root>`;
-    let txt=null;
     for(const p of CORS_PROXIES){
-      try{const r=await fetch(p('https://dis.kofia.or.kr/proframeWeb/XMLSERVICES/'),{method:'POST',headers:{'Content-Type':'application/xml;charset=utf-8'},body:xml,signal:AbortSignal.timeout(7000)});const t=await r.text();if(t&&t.length>50){txt=t;break;}}catch(e){}
-    }
-    if(txt){
-      const m=txt.match(/<nav>([\d.]+)<\/nav>/i)||txt.match(/<applBsePrc>([\d.]+)<\/applBsePrc>/i)||txt.match(/<basePrice>([\d.]+)<\/basePrice>/i);
-      if(m){const n=parseFloat(m[1]);if(n>100&&n<200000)return{nav:n,source:'KOFIA',date:td};}
+      try{
+        const r=await fetch(p('https://dis.kofia.or.kr/proframeWeb/XMLSERVICES/'),{method:'POST',headers:{'Content-Type':'application/xml;charset=utf-8'},body:xml,signal:AbortSignal.timeout(7000)});
+        const t=await r.text();
+        const m=t.match(/<nav>([\d.]+)<\/nav>/i)||t.match(/<applBsePrc>([\d.]+)<\/applBsePrc>/i)||t.match(/<basePrice>([\d.]+)<\/basePrice>/i);
+        if(m){const n=parseFloat(m[1]);if(n>100&&n<200000)return{nav:n,source:'KOFIA',date:td};}
+      }catch(e){}
     }
   }catch(e){}
 
-  // 3순위: fundguide.net 파싱
+  // 소스 2: 펀드가이드 파싱
   try{
-    const h=await proxyFetch(`https://www.fundguide.net/Fund/FundSummary?FundCd=${encodeURIComponent(code)}`,8000);
+    const h=await proxyFetch(`https://www.fundguide.net/Fund/FundSummary?FundCd=${c}`,8000);
     for(const re of[/"basePrc"\s*:\s*"?([\d,]+(?:\.\d+)?)"/,/기준가[^0-9]*([\d,]{3,9}(?:\.\d{1,4})?)/]){
       const m=h.match(re);if(m){const n=parseFloat(m[1].replace(/,/g,''));if(n>100&&n<200000)return{nav:n,source:'펀드가이드',date:td};}
     }
   }catch(e){}
 
-  // 4순위: 네이버 금융
+  // 소스 3: 네이버 금융
   try{
-    const h=await proxyFetch(`https://finance.naver.com/fund/fundDetail.naver?fundCd=${encodeURIComponent(code)}`,7000);
+    const h=await proxyFetch(`https://finance.naver.com/fund/fundDetail.naver?fundCd=${c}`,7000);
     for(const re of[/(?:basePrc|basePrice)[^\d]*([\d,]{3,9}(?:\.\d{1,4})?)/,/기준가[가-힣\s:]*?([\d,]{3,9}(?:\.\d{1,4})?)/]){
       const m=h.match(re);if(m){const n=parseFloat(m[1].replace(/,/g,''));if(n>100&&n<200000)return{nav:n,source:'Naver',date:td};}
     }
@@ -944,7 +846,6 @@ function renderTrade(){
 }
 
 function renderFund(){
-  updateFundApiUI();
   const el=document.getElementById('fundTable'),sum=document.getElementById('fundSummary');
   if(!D.funds.length){el.innerHTML=`<div class="card"><div class="empty"><div class="empty-icon">🏢</div><div>펀드를 추가하세요</div></div></div>`;sum.style.display='none';return;}
   let tc=0,tv=0;
@@ -1484,66 +1385,6 @@ function delSched(si){
 }
 
 // ════════════════════════════════
-//  펀드 API 키 설정
-// ════════════════════════════════
-function openFundApiModal(){
-  const el=document.getElementById('fundApiKeyInput');
-  if(el)el.value=D.fundApiKey||'';
-  document.getElementById('fundApiTestResult').textContent='';
-  document.getElementById('fundApiBg').classList.add('open');
-}
-function closeFundApiModal(){document.getElementById('fundApiBg').classList.remove('open');}
-
-function saveFundApiKey(){
-  const key=gv('fundApiKeyInput');
-  D.fundApiKey=key;save();
-  closeFundApiModal();
-  updateFundApiUI();
-  toast(key?'API 키가 저장되었습니다':'API 키가 삭제되었습니다');
-}
-function clearFundApiKey(){
-  if(!confirm('API 키를 삭제하시겠습니까?'))return;
-  D.fundApiKey='';save();
-  document.getElementById('fundApiKeyInput').value='';
-  updateFundApiUI();closeFundApiModal();
-  toast('API 키 삭제됨');
-}
-
-function updateFundApiUI(){
-  const status=document.getElementById('fundApiStatus');
-  const preview=document.getElementById('fundApiKeyPreview');
-  const masked=document.getElementById('fundApiKeyMasked');
-  if(!status)return;
-  if(D.fundApiKey){
-    status.innerHTML=`<span class="badge bg-green" style="font-size:11px">✔ 설정됨</span>`;
-    if(preview)preview.style.display='block';
-    if(masked){const k=D.fundApiKey;masked.textContent=k.slice(0,8)+'•'.repeat(Math.max(0,k.length-16))+k.slice(-8);}
-  }else{
-    status.innerHTML=`<span class="badge bg-muted" style="font-size:11px">미설정</span>`;
-    if(preview)preview.style.display='none';
-  }
-}
-
-async function testFundApi(){
-  const key=(document.getElementById('fundApiKeyInput')?.value||'').trim();
-  if(!key){document.getElementById('fundApiTestResult').textContent='API 키를 입력하세요';return;}
-  const el=document.getElementById('fundApiTestResult');
-  el.textContent='테스트 중...';el.style.color='var(--text-muted)';
-  // 잘 알려진 펀드 코드로 테스트 (삼성 코리아인덱스)
-  const testCode='KR5223941338';
-  const prev=D.fundApiKey;D.fundApiKey=key;
-  const r=await fetchFundNavPublicApi(testCode);
-  D.fundApiKey=prev;
-  if(r&&!r.error&&r.nav){
-    el.textContent=`✔ 연결 성공 — 테스트 기준가: ${fmt(r.nav,2)}원 (${r.date})`;el.style.color='var(--green)';
-  } else if(r?.error==='invalid_key'){
-    el.textContent='✗ 유효하지 않은 API 키입니다';el.style.color='var(--red)';
-  } else {
-    el.textContent='⚠ 응답 없음 — 키는 정상이나 해당 펀드 데이터가 없을 수 있습니다';el.style.color='var(--gold)';
-  }
-}
-
-// ════════════════════════════════
 //  GAS
 // ════════════════════════════════
 function openGasModal(){const el=document.getElementById('gasUrlInput');if(el)el.value=D.gasUrl||'';document.getElementById('gasSyncResult').style.display='none';document.getElementById('gasBg').classList.add('open');}
@@ -1588,7 +1429,7 @@ function toast(msg,type=''){
   clearTimeout(toast._t);toast._t=setTimeout(()=>el.className='toast',2800);
 }
 (async function init(){
-  renderAll();updateGasUI();updateFundApiUI();
+  renderAll();updateGasUI();
   if(D.rateTs){const d=new Date(D.rateTs);document.getElementById('lastUpdate').textContent=`갱신 ${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;}
   if(!D.rateTs||(Date.now()-new Date(D.rateTs))>3*3600*1000){const ok=await fetchRates();if(ok){renderAll();toast('환율 자동 업데이트');}}
 })();
