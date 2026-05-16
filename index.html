@@ -164,9 +164,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:rgba(255,255,255,.015
     <div class="sec-hd">
       <div class="sec-title">투자 종목</div>
       <div style="display:flex;gap:7px">
-        <button class="ibt buy btn-sm" style="padding:5px 12px;font-size:12px" onclick="openTradeModal('buy')">+ 매수</button>
-        <button class="ibt sell btn-sm" style="padding:5px 12px;font-size:12px" onclick="openTradeModal('sell')">+ 매도</button>
-        <button class="btn btn-primary btn-sm" onclick="openModal('stock')">+ 수동 추가</button>
+        <button class="btn btn-primary btn-sm" onclick="openModal('stock')">+ 종목 추가</button>
       </div>
     </div>
     <div class="card"><div class="tw" id="stockTable"></div></div>
@@ -707,7 +705,7 @@ function calcStockPL(s){
 
 function renderInv(){
   const el=document.getElementById('stockTable'),sum=document.getElementById('invSummary');
-  if(!D.stocks.length){el.innerHTML=`<div class="empty"><div class="empty-icon">📈</div><div>매수 버튼이나 수동 추가로 종목을 등록하세요</div></div>`;sum.style.display='none';return;}
+  if(!D.stocks.length){el.innerHTML=`<div class="empty"><div class="empty-icon">📈</div><div>종목 추가 버튼으로 보유 종목을 등록하세요</div></div>`;sum.style.display='none';return;}
   let totalCost=0,totalVal=0;
   const hasForex=D.stocks.some(s=>s.currency&&s.currency!=='KRW');
   const rows=D.stocks.map((s,i)=>{
@@ -732,8 +730,6 @@ function renderInv(){
       ${plCell}
       <td class="num gold">${fmtF(Math.round(pl.valKRW))}</td>
       <td style="white-space:nowrap">
-        <button class="ibt buy" onclick="openTradeModal('buy',${i})" style="margin-right:3px">매수</button>
-        <button class="ibt sell" onclick="openTradeModal('sell',${i})" style="margin-right:3px">매도</button>
         <button class="ibt edit" onclick="openModal('stock',${i})" style="margin-right:3px">수정</button>
         <button class="ibt del" onclick="delStock(${i})">삭제</button>
       </td>
@@ -1236,7 +1232,7 @@ function openTradeModal(type,stockIdx=-1){
   const s=stockIdx>=0?D.stocks[stockIdx]:null;
   const today=new Date().toISOString().slice(0,10);
   const defCur=s?s.currency||'KRW':'KRW';
-  const defRate=defCur!=='KRW'?(D.rates[defCur]||''):'';
+  const defRate=defCur==='KRW'?'1':(D.rates[defCur]||'');
   document.getElementById('tradeBody').innerHTML=`
     ${D.stocks.length?`<div class="fg"><label class="fl">기존 종목 선택 (선택사항)</label><select class="fs" id="t_pick" onchange="pickTradeStock(this.value)"><option value="">— 새 종목 직접 입력 —</option>${D.stocks.map((ss,i)=>`<option value="${i}" ${stockIdx===i?'selected':''}>${ss.name} (${ss.symbol||'없음'})</option>`).join('')}</select></div>`:'' }
     <div class="fg"><label class="fl">심볼 검색</label>
@@ -1254,7 +1250,7 @@ function openTradeModal(type,stockIdx=-1){
     </div>
     <div class="fr">
       <div class="fg"><label class="fl">통화 *</label>
-        <select class="fs" id="t_cur" onchange="toggleRateField(this.value)">
+        <select class="fs" id="t_cur" onchange="onCurChange(this.value)">
           <option value="KRW" ${defCur==='KRW'?'selected':''}>KRW 원</option>
           <option value="USD" ${defCur==='USD'?'selected':''}>USD 달러</option>
           <option value="EUR" ${defCur==='EUR'?'selected':''}>EUR 유로</option>
@@ -1267,10 +1263,10 @@ function openTradeModal(type,stockIdx=-1){
       <div class="fg"><label class="fl">수량 *</label><input class="fi" id="t_qty" type="number" step="any" placeholder="0"></div>
       <div class="fg"><label class="fl">단가 *</label><input class="fi" id="t_price" type="number" step="any" placeholder="0"></div>
     </div>
-    <div class="fg" id="rateFieldWrap" style="${defCur==='KRW'?'display:none':''}">
-      <label class="fl">📌 매입 당시 환율 * <span style="font-weight:400;color:var(--text-muted)">(원화 환산 및 환율손익 계산에 사용)</span></label>
+    <div class="fg">
+      <label class="fl" id="rateLabel">📌 거래 당시 환율 (원/${defCur}) *</label>
       <input class="fi" id="t_purchaseRate" type="number" step="any" value="${defRate}" placeholder="예: 1370">
-      <div class="hint" id="rateHint">현재 환율: ${defCur!=='KRW'?fmt(D.rates[defCur]||0)+' 원/'+defCur:''} — 거래 당시 실제 환율을 입력하세요</div>
+      <div class="hint" id="rateHint">${defCur==='KRW'?'KRW는 환율 1 (자동 적용)':'현재 환율: '+fmt(D.rates[defCur]||0)+' 원/'+defCur+' — 거래 당시 실제 환율을 입력하세요'}</div>
     </div>
     ${type==='sell'&&s?`<div class="fg"><div style="background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:9px 13px;font-size:12px;color:var(--text-muted)">평균 매수단가: <strong style="color:var(--text);font-family:var(--mono)">${fmt(s.avgPrice,2)} ${s.currency||'KRW'}</strong> &nbsp;·&nbsp; 보유: <strong style="color:var(--text);font-family:var(--mono)">${fmt(s.shares,4)}</strong>주 &nbsp;·&nbsp; 평균 매입환율: <strong style="color:var(--gold);font-family:var(--mono)">${s.avgPurchaseRate?fmt(s.avgPurchaseRate)+'원/'+s.currency:'미기록'}</strong></div></div>`:''}
     <div class="fg"><label class="fl">메모</label><input class="fi" id="t_note" placeholder="선택 입력"></div>
@@ -1282,17 +1278,19 @@ function openTradeModal(type,stockIdx=-1){
 }
 function closeTrade(){document.getElementById('tradeBg').classList.remove('open');}
 
-function toggleRateField(cur){
-  const wrap=document.getElementById('rateFieldWrap');
+function onCurChange(cur){
+  const lbl=document.getElementById('rateLabel');
   const hint=document.getElementById('rateHint');
-  if(!wrap)return;
-  if(cur==='KRW'){wrap.style.display='none';}
-  else{
-    wrap.style.display='';
+  const inp=document.getElementById('t_purchaseRate');
+  if(!inp)return;
+  if(lbl)lbl.textContent=`📌 거래 당시 환율 (원/${cur}) *`;
+  if(cur==='KRW'){
+    inp.value='1';
+    if(hint)hint.textContent='KRW는 환율 1 (자동 적용)';
+  }else{
     const rate=D.rates[cur]||0;
+    inp.value=rate||'';
     if(hint)hint.textContent=`현재 환율: ${fmt(rate)} 원/${cur} — 거래 당시 실제 환율을 입력하세요`;
-    const inp=document.getElementById('t_purchaseRate');
-    if(inp&&!inp.value)inp.value=rate;
   }
 }
 
@@ -1300,18 +1298,17 @@ function pickTradeStock(val){
   if(!val)return;const s=D.stocks[parseInt(val)];if(!s)return;
   const nEl=document.getElementById('t_name'),sEl=document.getElementById('t_sym'),cEl=document.getElementById('t_cur');
   if(nEl)nEl.value=s.name;if(sEl)sEl.value=s.symbol||'';
-  if(cEl){cEl.value=s.currency||'KRW';toggleRateField(cEl.value);}
-  // 평균 매입환율 힌트 업데이트
+  if(cEl){cEl.value=s.currency||'KRW';onCurChange(cEl.value);}
   const rEl=document.getElementById('t_purchaseRate');
-  if(rEl&&s.avgPurchaseRate&&!rEl.value)rEl.value=s.avgPurchaseRate;
+  if(rEl&&s.avgPurchaseRate)rEl.value=s.avgPurchaseRate;
 }
 function submitTrade(){
   const name=gv('t_name'),sym=gv('t_sym').toUpperCase(),cur=gv('t_cur'),date=gv('t_date');
   const qty=gn('t_qty'),price=gn('t_price');
   if(!name||!qty||!price||!date)return toast('필수 항목을 모두 입력하세요','err');
   const isForex=cur!=='KRW';
-  const purchaseRate=isForex?gn('t_purchaseRate'):0;
-  if(isForex&&!purchaseRate)return toast('해외 종목은 매입 당시 환율을 입력하세요','err');
+  // 환율: KRW면 1, 해외면 입력값 사용 (없으면 현재 환율 자동)
+  const purchaseRate=isForex?(gn('t_purchaseRate')||D.rates[cur]||1):1;
 
   let si=D.stocks.findIndex(s=>(sym&&s.symbol===sym)||s.name===name);
 
