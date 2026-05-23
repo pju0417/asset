@@ -235,9 +235,12 @@ tr:last-child td{border-bottom:none}tr:hover td{background:rgba(255,255,255,.015
       </div>
     </div>
 
-    <div class="card" style="margin-bottom:12px;border-left:3px solid var(--blue);padding:12px 15px">
+    <div class="card" style="margin-bottom:12px;border-left:3px solid var(--red);padding:12px 15px">
+      <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px">⚠ 펀드 기준가 자동조회 불가</div>
       <div style="font-size:12px;color:var(--text-muted);line-height:1.9">
-        💡 <strong style="color:var(--text)">펀드 코드:</strong> <a href="https://www.fundguide.net" target="_blank" style="color:var(--blue);text-decoration:none">펀드가이드(fundguide.net)</a> 에서 펀드 검색 → 상세 URL의 <code style="background:var(--surface2);padding:1px 5px;border-radius:3px;font-family:var(--mono);font-size:11px;color:var(--gold)">FundCd=KR...</code> 값 사용
+        한국 모든 펀드 정보 사이트(KOFIA, 네이버 금융, 펀드가이드 등)가 외부 자동 요청을 차단하고 있어
+        브라우저 HTML 파일에서는 기준가를 자동으로 가져올 수 없습니다.<br>
+        👉 각 펀드 행의 <strong style="color:var(--gold)">✏ 직접입력</strong> 버튼 → <a href="https://www.fundguide.net" target="_blank" style="color:var(--blue);text-decoration:none">펀드가이드↗</a>에서 기준가 확인 후 입력하세요.
       </div>
     </div>
     <div id="fundTable"></div>
@@ -556,40 +559,10 @@ async function verifySymbol(sym){
   return r?{symbol:sym,...r}:null;
 }
 
-// 펀드 기준가 - 다중 소스 시도
+// 펀드 기준가 자동조회 - 모든 한국 금융 사이트가 외부 요청을 차단하여
+// 브라우저 HTML에서 자동조회는 현재 불가능합니다.
+// 직접입력(✏ 직접입력 버튼)을 사용해 주세요.
 async function fetchFundNav(code){
-  const td=new Date().toISOString().slice(0,10);
-  const c=encodeURIComponent(code);
-
-  // 소스 1: 금융투자협회 KOFIA XML
-  try{
-    const xml=`<?xml version="1.0" encoding="utf-8"?><root><parameter id="standardCd" type="string"><![CDATA[${code}]]></parameter><parameter id="vLang" type="string"><![CDATA[KOR]]></parameter></root>`;
-    for(const p of CORS_PROXIES){
-      try{
-        const r=await fetch(p('https://dis.kofia.or.kr/proframeWeb/XMLSERVICES/'),{method:'POST',headers:{'Content-Type':'application/xml;charset=utf-8'},body:xml,signal:AbortSignal.timeout(7000)});
-        const t=await r.text();
-        const m=t.match(/<nav>([\d.]+)<\/nav>/i)||t.match(/<applBsePrc>([\d.]+)<\/applBsePrc>/i)||t.match(/<basePrice>([\d.]+)<\/basePrice>/i);
-        if(m){const n=parseFloat(m[1]);if(n>100&&n<200000)return{nav:n,source:'KOFIA',date:td};}
-      }catch(e){}
-    }
-  }catch(e){}
-
-  // 소스 2: 펀드가이드 파싱
-  try{
-    const h=await proxyFetch(`https://www.fundguide.net/Fund/FundSummary?FundCd=${c}`,8000);
-    for(const re of[/"basePrc"\s*:\s*"?([\d,]+(?:\.\d+)?)"/,/기준가[^0-9]*([\d,]{3,9}(?:\.\d{1,4})?)/]){
-      const m=h.match(re);if(m){const n=parseFloat(m[1].replace(/,/g,''));if(n>100&&n<200000)return{nav:n,source:'펀드가이드',date:td};}
-    }
-  }catch(e){}
-
-  // 소스 3: 네이버 금융
-  try{
-    const h=await proxyFetch(`https://finance.naver.com/fund/fundDetail.naver?fundCd=${c}`,7000);
-    for(const re of[/(?:basePrc|basePrice)[^\d]*([\d,]{3,9}(?:\.\d{1,4})?)/,/기준가[가-힣\s:]*?([\d,]{3,9}(?:\.\d{1,4})?)/]){
-      const m=h.match(re);if(m){const n=parseFloat(m[1].replace(/,/g,''));if(n>100&&n<200000)return{nav:n,source:'Naver',date:td};}
-    }
-  }catch(e){}
-
   return null;
 }
 
@@ -668,9 +641,6 @@ async function refreshAll(){
   const btn=document.getElementById('refreshBtn'),ic=document.getElementById('refreshIcon');
   btn.disabled=true;ic.innerHTML='<span class="spin">↻</span>';
   await refreshPricesOnly(true);
-  // 수동 갱신 시에만 펀드도 포함
-  for(const f of D.funds){if(f.fundCode){const r=await fetchFundNav(f.fundCode);if(r){f.currentNav=r.nav;f.navDate=r.date;f.navStatus='ok';f.priceSource=r.source;}else f.navStatus='fail';}}
-  save();
   btn.disabled=false;ic.textContent='↻';
   renderAll();
 }
@@ -1110,11 +1080,11 @@ function delTrade(id){
 //  FUND HELPERS
 // ════════════════════════════════
 async function refreshFunds(){
-  const btn=document.getElementById('fundRefreshBtn');btn.disabled=true;btn.innerHTML='<span class="spin">↻</span> 조회중...';
-  let ok=0,fail=0;
-  for(const f of D.funds){if(!f.fundCode)continue;const r=await fetchFundNav(f.fundCode);if(r){f.currentNav=r.nav;f.navDate=r.date;f.navStatus='ok';ok++;}else{f.navStatus='fail';fail++;}}
-  save();renderFund();btn.disabled=false;btn.innerHTML='↻ 기준가 조회';
-  toast(ok>0?`${ok}개 업데이트${fail>0?' ('+fail+'개 실패)':''}`:'조회 실패 — 직접 입력을 이용하세요','');
+  const btn=document.getElementById('fundRefreshBtn');
+  btn.disabled=true;btn.innerHTML='확인 중...';
+  await new Promise(r=>setTimeout(r,300));
+  btn.disabled=false;btn.innerHTML='↻ 기준가 조회';
+  toast('⚠ 펀드 기준가 자동조회 불가 — 각 펀드의 ✏ 직접입력 버튼을 사용하세요','err');
 }
 function manualNav(idx){
   const f=D.funds[idx];
