@@ -385,7 +385,9 @@ function getSchedAmt(sched,ym){
 function monthsFrom(dateStr){
   if(!dateStr)return 0;
   const s=new Date(dateStr),n=new Date();
-  return Math.max(0,(n.getFullYear()-s.getFullYear())*12+n.getMonth()-s.getMonth());
+  let months=(n.getFullYear()-s.getFullYear())*12+(n.getMonth()-s.getMonth());
+  if(n.getDate()<s.getDate())months--; // 아직 해당 월의 "그날"이 안 지났으면 1개월 차감
+  return Math.max(0,months);
 }
 
 // ════════════════════════════════
@@ -396,8 +398,7 @@ function calcInst(it){
   const isOpen=it.isOpenEnded;
   const term=isOpen?null:it.termMonths;
   const start=new Date(it.startDate||'2000-01-01');
-  const now=new Date();
-  const elRaw=(now.getFullYear()-start.getFullYear())*12+now.getMonth()-start.getMonth();
+  const elRaw=monthsFrom(it.startDate);
   const elapsed=Math.max(0,term?Math.min(elRaw,term):elRaw);
   const r=it.interestRate/100/12;
   let deposited=0,interest=0;
@@ -416,7 +417,7 @@ function calcInst(it){
       maturity+=amt+amt*r*(term-i);
     }
   }
-  const curAmt=getSchedAmt(sched,ymKey(now));
+  const curAmt=getSchedAmt(sched,ymKey(new Date()));
   return{elapsed,deposited,interest:Math.round(interest),total:Math.round(deposited+interest),maturity:Math.round(maturity||deposited+interest),pct:term?Math.min(elapsed/term,1):1,curAmt};
 }
 
@@ -692,6 +693,20 @@ function updateCountdown(){
   if(!cd)return;
   if(_arRemain>60) cd.textContent=`${Math.floor(_arRemain/60)}m${_arRemain%60}s`;
   else cd.textContent=`${_arRemain}s`;
+}
+
+// ════════════════════════════════
+//  날짜 기반 자동 재계산 (예적금/대출/대시보드)
+//  - 네트워크 요청 없이 경과일/경과월을 다시 계산해 화면에 반영
+//  - 가격 자동갱신(setAutoRefresh)과 무관하게 항상 동작
+// ════════════════════════════════
+let _dateTick=null;
+
+function startDateTick(){
+  if(_dateTick)return;
+  _dateTick=setInterval(()=>{
+    renderDash();renderSavings();renderLoans();
+  },60000); // 1분마다 — 날짜 변화만 반영하므로 네트워크 부담 없이 항상 동작
 }
 
 // ════════════════════════════════
@@ -1672,6 +1687,8 @@ function toast(msg,type=''){
     if(warn)warn.style.display=savedSec<=15?'':'none';
     startAutoRefreshCycle();
   }
+  // 가격 자동갱신 설정과 무관하게 항상 동작 — 예적금/대출 경과일·경과월 자동 반영
+  startDateTick();
 })();
 </script>
 </body>
