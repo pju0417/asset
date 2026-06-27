@@ -1280,17 +1280,34 @@ function buildForm(type,it){
     const isOpen=it?it.isOpenEnded:false;
     const firstAmt=it?.paymentSchedule?.[0]?.amount||'';
     const defDay=v('paymentDay','')||(it&&it.startDate?new Date(it.startDate).getDate():'');
+    const isEditMode=!!it;
+    const curEffectiveAmt=isEditMode?getSchedAmt(it.paymentSchedule||[],ymKey(new Date())):firstAmt;
     return`
     <div class="fg"><label class="fl">적금명 *</label><input class="fi" id="f_name" value="${v('name')}" placeholder="KB 정기적금"></div>
     <div class="fr">
       <div class="fg"><label class="fl">연 이자율 (%) *</label><input class="fi" id="f_rate" type="number" step="0.01" value="${v('interestRate')}" placeholder="3.5"></div>
       <div class="fg"><label class="fl">시작일 *</label><input class="fi" id="f_start" type="date" value="${v('startDate')}"></div>
     </div>
+    ${isEditMode?`
+    <div class="fg">
+      <label class="fl">현재 적용 납입금 (원)</label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <div style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:9px 13px;font-family:var(--mono);color:var(--gold);font-weight:700">${fmt(curEffectiveAmt)}원</div>
+        <button type="button" class="btn btn-outline btn-sm" onclick="closeModal();openPayModal(_mIdx)" style="white-space:nowrap">변경하기 →</button>
+      </div>
+      <div class="hint">납입금 변경은 <strong style="color:var(--gold)">「변경하기」</strong> 버튼으로만 가능합니다 — 변경 시작 월을 함께 지정해 이력으로 관리됩니다.</div>
+    </div>
+    <div class="fr">
+      <div class="fg"><label class="fl">📌 매달 납입일 (일) *</label><input class="fi" id="f_payday" type="number" min="1" max="31" value="${defDay}" placeholder="예: 25"></div>
+      <div></div>
+    </div>
+    `:`
     <div class="fr">
       <div class="fg"><label class="fl">월 납입금액 (원) *</label><input class="fi" id="f_monthly" type="number" value="${firstAmt}" placeholder="300000"></div>
       <div class="fg"><label class="fl">📌 매달 납입일 (일) *</label><input class="fi" id="f_payday" type="number" min="1" max="31" value="${defDay}" placeholder="예: 25"></div>
     </div>
-    <div class="hint" style="margin-top:-6px;margin-bottom:14px">매달 이 날짜가 되면 자동으로 납입금이 추가 반영됩니다. (예: 25 → 매달 25일) 월말이 짧은 달은 그 달의 마지막 날로 자동 보정됩니다. 납입금 변경 이력은 저장 후 '납입금 변경' 버튼으로 관리합니다.</div>
+    <div class="hint" style="margin-top:-6px;margin-bottom:14px">매달 이 날짜가 되면 자동으로 납입금이 반영됩니다. 월말이 짧은 달은 그 달의 마지막 날로 자동 보정됩니다. 등록 후 금액을 바꾸려면 '납입금 변경' 버튼을 사용하세요.</div>
+    `}
     <div class="fg" style="display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:10px 14px">
       <input type="checkbox" id="f_open" ${isOpen?'checked':''} onchange="document.getElementById('termGrp').style.display=this.checked?'none':''" style="width:16px;height:16px;accent-color:var(--purple)">
       <label for="f_open" style="font-size:13px;cursor:pointer">무기한 통장 <span class="muted">(청약통장 등 만기 없음)</span></label>
@@ -1356,15 +1373,19 @@ function submitModal(){
     const obj={name,fundCode:code,units,purchaseNav:nav,currentNav:isEdit?D.funds[idx].currentNav:null,navDate:isEdit?D.funds[idx].navDate:null,navStatus:isEdit?D.funds[idx].navStatus:null};
     if(isEdit)D.funds[idx]=obj;else D.funds.push(obj);
   }else if(type==='installment'){
-    const r=gn('f_rate'),s=gv('f_start'),m=gn('f_monthly'),payDay=gn('f_payday');
+    const r=gn('f_rate'),s=gv('f_start'),payDay=gn('f_payday');
     const isOpen=gc('f_open'),term=isOpen?null:gn('f_term');
-    if(!r||!s||!m)return toast('모든 항목을 입력하세요','err');
+    if(!r||!s)return toast('모든 항목을 입력하세요','err');
     if(!isOpen&&!term)return toast('만기 개월을 입력하세요','err');
     if(!payDay||payDay<1||payDay>31)return toast('납입일을 1~31 사이로 입력하세요','err');
     if(isEdit){
+      // 수정 모드: 금액(paymentSchedule)은 절대 건드리지 않음 — '납입금 변경' 모달에서만 관리
       const it=D.installments[idx];it.name=name;it.interestRate=r;it.startDate=s;it.termMonths=term;it.isOpenEnded=isOpen;it.paymentDay=payDay;
-      if(it.paymentSchedule?.length===1)it.paymentSchedule[0].amount=m;
-    }else D.installments.push({name,interestRate:r,startDate:s,termMonths:term,isOpenEnded:isOpen,paymentDay:payDay,paymentSchedule:[{from:s.slice(0,7),amount:m}]});
+    }else{
+      const m=gn('f_monthly');
+      if(!m)return toast('월 납입금액을 입력하세요','err');
+      D.installments.push({name,interestRate:r,startDate:s,termMonths:term,isOpenEnded:isOpen,paymentDay:payDay,paymentSchedule:[{from:s.slice(0,7),amount:m}]});
+    }
   }else if(type==='deposit'){
     const a=gn('f_amt'),r=gn('f_rate'),s=gv('f_start'),e=gv('f_end');if(!a||!r||!s||!e)return toast('모든 항목을 입력하세요','err');
     const obj={name,amount:a,interestRate:r,startDate:s,endDate:e,currency:gv('f_cur')};
